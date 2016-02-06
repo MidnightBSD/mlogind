@@ -91,7 +91,7 @@ namespace Ck {
 
 	vt = *((long *)return_value);
 
-	std::snprintf(device, 32, "/dev/tty%ld", vt);
+	snprintf(device, 32, "/dev/ttyv%ld", vt - 1);
 
 	if(return_value)
 	  XFree(return_value);

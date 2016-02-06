@@ -127,6 +127,7 @@ namespace PAM {
 			case PAM_MAXTRIES:
 			case PAM_CRED_INSUFFICIENT:
 			case PAM_AUTH_ERR:
+			case PAM_CONV_ERR:
 				throw Auth_Exception(pam_handle, "pam_authentication()", last_result);
 
 			case PAM_SUCCESS:
