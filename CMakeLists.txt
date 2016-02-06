@@ -256,7 +256,7 @@ endif (BUILD_SHARED_LIBS)
 install(FILES slim.1 DESTINATION ${MANDIR}/man1/)
 if(BUILD_SLIMLOCK)
 	install(FILES slimlock.1 DESTINATION ${MANDIR}/man1/)
-endif(BUILD_SLIMLOCK
+endif(BUILD_SLIMLOCK)
 # configure
 install(FILES slim.conf.sample DESTINATION ${SYSCONFDIR})
 # systemd service file
