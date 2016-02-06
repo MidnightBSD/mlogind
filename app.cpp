@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <login_cap.h>
 #include <cstring>
 #include <cstdio>
 #include <iostream>
@@ -31,6 +32,20 @@
 #endif
 
 using namespace std;
+
+static const int LOGIN_CAP_VAR_COUNT = 4;
+static const char* LOGIN_CAP_VARS[] = {
+	"lang",
+	"charset",
+	"timezone",
+	"manpath",
+};
+static const char* LOGIN_CAP_ENVS[] = {
+	"LANG",
+	"MM_CHARSET",
+	"TZ",
+	"MANPATH",
+};
 
 #ifdef USE_PAM
 #include <string>
@@ -121,6 +136,22 @@ void CatchSignal(int sig) {
 
 void User1Signal(int sig) {
 	signal(sig, User1Signal);
+}
+
+static void AddToEnv(char*** curr_env, const char *name, const char *value) {
+	int n;
+	for (n = 0; (*curr_env)[n] != NULL; n++) ;
+	n++;
+	char** new_env = static_cast<char**>(malloc(sizeof(char*) * (n + 1)));
+	memcpy(new_env, *curr_env, sizeof(char*) * n);
+	char* entry = static_cast<char*>(malloc(strlen(name) + strlen(value) + 2));
+	strcpy(entry, name);
+	strcat(entry, "=");
+	strcat(entry, value);
+	new_env[n-1] = entry;
+	new_env[n] = NULL;
+	free(*curr_env);
+	*curr_env = new_env;
 }
 
 #ifdef USE_PAM
@@ -596,8 +627,8 @@ void App::Login() {
 
 		n++;
 
-		child_env = static_cast<char**>(malloc(sizeof(char*)*n));
-		memcpy(child_env, old_env, sizeof(char*)*n+1);
+		child_env = static_cast<char**>(malloc(sizeof(char*)*(n+1)));
+		memcpy(child_env, old_env, sizeof(char*)*n);
 		child_env[n - 1] = StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
 		child_env[n] = NULL;
 # endif /* USE_CONSOLEKIT */
@@ -626,6 +657,17 @@ void App::Login() {
 		child_env[n++]=0;
 
 #endif
+
+		login_cap_t *lc = login_getpwclass(pw);
+		if (lc != NULL) {
+			for (int i = 0; i < LOGIN_CAP_VAR_COUNT; i++) {
+				const char *value = login_getcapstr(lc, LOGIN_CAP_VARS[i], NULL, NULL);
+				if (value != NULL) {
+					AddToEnv(&child_env, LOGIN_CAP_ENVS[i], value);
+				}
+			}
+			login_close(lc);
+		}
 
 		/* Login process starts here */
 		SwitchUser Su(pw, cfg, DisplayName, child_env);
@@ -941,7 +983,7 @@ int App::StartServer() {
 	}
 
 	if (!hasVtSet && daemonmode) {
-		server[argc++] = (char*)"vt07";
+		server[argc++] = (char*)"vt09";
 	}
 	server[argc] = NULL;
 
