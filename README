@@ -1,12 +1,14 @@
 README file for SLiM
 
-Nobuhiro Iwamatsu <iwamatsu@nigauri.org>
+This is a modified version of SLiM for BSD systems.
+
+Lucas Holt <luke@foolishgames.com>
 
 INTRODUCTION
     SLiM (Simple Login Manager) is a graphical login manager for X11.
     It aims to be simple, fast and independent from the various
     desktop environments.
-    SLiM is based on latest stable release of Login.app by Per Lidén.
+    SLiM is based on latest stable release of Login.app by Per Liden.
 
     New features:
     - External themes and configuration
@@ -40,11 +42,11 @@ USAGE
     is to take a screenshot if the 'import' program is available.
     
 CONFIGURATION
-    /usr/etc/slim.conf is the main configuration file.
+    /usr/local/etc/slim.conf is the main configuration file.
     Options are explained in the file itself
     
 THEMES
-    See THEMES
+    See THEMES.README
 
 COPYRIGHT
     SLiM is copyright (c) 2004-06 by Simone Rota, Johannes Winkelmann,
