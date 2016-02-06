@@ -14,6 +14,7 @@ INCLUDE(CheckIncludeFile)
 INCLUDE(CheckCCompilerFlag)
 INCLUDE(CheckCXXCompilerFlag)
 INCLUDE(CheckTypeSize)
+INCLUDE(GNUInstallDirs)
 
 # Version
 set(SLIM_VERSION_MAJOR "1")
@@ -23,9 +24,17 @@ set(SLIM_VERSION "${SLIM_VERSION_MAJOR}.${SLIM_VERSION_MINOR}.${SLIM_VERSION_PAT
 
 set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Installation Directory")
 set(PKGDATADIR "${CMAKE_INSTALL_PREFIX}/share/slim")
-set(SYSCONFDIR "/etc")
-set(LIBDIR "/lib")
-set(MANDIR "${CMAKE_INSTALL_PREFIX}/share/man")
+if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR
+		${CMAKE_SYSTEM_NAME} MATCHES "MidnightBSD"
+		)
+	set(SYSCONFDIR "${CMAKE_INSTALL_FULL_SYSCONFDIR}")
+	set(LIBDIR "${CMAKE_INSTALL_FULL_LIBDIR}")
+	set(MANDIR "${CMAKE_INSTALL_PREFIX}/man")
+else()
+        set(SYSCONFDIR "/etc")
+        set(LIBDIR "/lib")
+        set(MANDIR "${CMAKE_INSTALL_PREFIX}/share/man")
+endif()
 
 set(SLIM_DEFINITIONS)
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR
@@ -73,7 +82,9 @@ set(common_srcs
 if(USE_PAM)
 	set(common_srcs ${common_srcs} PAM.cpp)
     # for now, only build slimlock if we are using PAM.
-    set(BUILD_SLIMLOCK 1)
+	if(BUILD_SLIMLOCK)
+		set(BUILD_SLIMLOCK 1)
+	endif(BUILD_SLIMLOCK)
 endif(USE_PAM)
 
 # Build common library
@@ -122,7 +133,9 @@ if(USE_PAM)
 		message("\tPAM Found")
 		set(SLIM_DEFINITIONS ${SLIM_DEFINITIONS} "-DUSE_PAM")
 		target_link_libraries(${PROJECT_NAME} ${PAM_LIBRARY})
-		target_link_libraries(slimlock ${PAM_LIBRARY})
+		if(BUILD_SLIMLOCK)
+			target_link_libraries(slimlock ${PAM_LIBRARY})
+		endif(BUILD_SLIMLOCK)
 		include_directories(${PAM_INCLUDE_DIR})
 	else(PAM_FOUND)
 		message("\tPAM Not Found")
@@ -197,6 +210,7 @@ target_link_libraries(${PROJECT_NAME}
 	${FREETYPE_LIBRARY}
 	${JPEG_LIBRARIES}
 	${PNG_LIBRARIES}
+	util
     libslim
 )
 
@@ -223,7 +237,9 @@ endif(BUILD_SLIMLOCK)
 ####### install
 # slim
 install(TARGETS slim RUNTIME DESTINATION bin)
-install(TARGETS slimlock RUNTIME DESTINATION bin)
+if(BUILD_SLIMLOCK)
+	install(TARGETS slimlock RUNTIME DESTINATION bin)
+endif(BUILD_SLIMLOCK)
 
 if (BUILD_SHARED_LIBS)
 	set_target_properties(libslim PROPERTIES
@@ -238,9 +254,11 @@ endif (BUILD_SHARED_LIBS)
 
 # man file
 install(FILES slim.1 DESTINATION ${MANDIR}/man1/)
-install(FILES slimlock.1 DESTINATION ${MANDIR}/man1/)
+if(BUILD_SLIMLOCK)
+	install(FILES slimlock.1 DESTINATION ${MANDIR}/man1/)
+endif(BUILD_SLIMLOCK
 # configure
-install(FILES slim.conf DESTINATION ${SYSCONFDIR})
+install(FILES slim.conf.sample DESTINATION ${SYSCONFDIR})
 # systemd service file
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 	install(FILES slim.service DESTINATION ${LIBDIR}/systemd/system)
