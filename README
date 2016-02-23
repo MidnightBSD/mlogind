@@ -1,14 +1,15 @@
-README file for SLiM
+README file for mlogind
 
 This is a modified version of SLiM for BSD systems.
 
 Lucas Holt <luke@foolishgames.com>
 
 INTRODUCTION
-    SLiM (Simple Login Manager) is a graphical login manager for X11.
+    mlogind is a graphical login manager for X11.
     It aims to be simple, fast and independent from the various
     desktop environments.
-    SLiM is based on latest stable release of Login.app by Per Liden.
+    mlogind is based on latest stable release of Login.app by Per Liden
+    and SLiM 1.3.6.
 
     New features:
     - External themes and configuration
@@ -23,7 +24,7 @@ INSTALLATION
     
 USAGE
 
-    To launch slim, execute run the slim binary,
+    To launch mlogind, execute run the mlogind binary,
     followed by the -d option if you want it to
     run as a daemon in the background (reccommended)
     
@@ -49,6 +50,8 @@ THEMES
     See THEMES.README
 
 COPYRIGHT
+    mlogind is copyright (c) 2016 Lucas Holt
+    
     SLiM is copyright (c) 2004-06 by Simone Rota, Johannes Winkelmann,
     Nobuhiro Iwamatsu and is available under the GNU General Public
     License.
