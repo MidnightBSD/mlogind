@@ -42,16 +42,16 @@ Cfg::Cfg()
 	options.insert(option("sessionstart_cmd",""));
 	options.insert(option("sessionstop_cmd",""));
 	options.insert(option("console_cmd","/usr/bin/xterm -C -fg white -bg black +sb -g %dx%d+%d+%d -fn %dx%d -T ""Console login"" -e /bin/sh -c ""/bin/cat /etc/issue; exec /bin/login"""));
-	options.insert(option("screenshot_cmd","import -window root /slim.png"));
+	options.insert(option("screenshot_cmd","import -window root /mlogind.png"));
 	options.insert(option("welcome_msg","Welcome to %host"));
 	options.insert(option("session_msg","Session:"));
 	options.insert(option("default_user",""));
 	options.insert(option("focus_password","no"));
 	options.insert(option("auto_login","no"));
 	options.insert(option("current_theme","default"));
-	options.insert(option("lockfile","/var/run/slim.lock"));
-	options.insert(option("logfile","/var/log/slim.log"));
-	options.insert(option("authfile","/var/run/slim.auth"));
+	options.insert(option("lockfile","/var/run/mlogind.lock"));
+	options.insert(option("logfile","/var/log/mlogind.log"));
+	options.insert(option("authfile","/var/run/mlogind.auth"));
 	options.insert(option("shutdown_msg","The system is halting..."));
 	options.insert(option("reboot_msg","The system is rebooting..."));
 	options.insert(option("sessiondir",""));
@@ -119,7 +119,7 @@ Cfg::Cfg()
 	options.insert(option("session_shadow_yoffset", "0"));
 	options.insert(option("session_shadow_color","#FFFFFF"));
 
-	// slimlock-specific options
+	// mloginlock-specific options
 	options.insert(option("dpms_standby_timeout", "60"));
 	options.insert(option("dpms_off_timeout", "600"));
 	options.insert(option("wrong_passwd_timeout", "2"));

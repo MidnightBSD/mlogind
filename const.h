@@ -1,4 +1,4 @@
-/* SLiM - Simple Login Manager
+/* mlogind - MidnightBSD Login Manager
    Copyright (C) 1997, 1998 Per Liden
    Copyright (C) 2004-06 Simone Rota <sip@varlock.com>
    Copyright (C) 2004-06 Johannes Winkelmann <jw@tks6.net>
@@ -12,7 +12,7 @@
 #ifndef _CONST_H_
 #define _CONST_H_
 
-#define APPNAME	"slim"
+#define APPNAME	"mlogind"
 #define DISPLAY	":0.0"
 
 #define CONSOLE_STR	 "console"

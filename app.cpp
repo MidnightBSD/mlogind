@@ -253,7 +253,7 @@ void App::Run() {
 
 #ifdef USE_PAM
 	try{
-		pam.start("slim");
+		pam.start("mlogind");
 		pam.set_item(PAM::Authenticator::TTY, DisplayName);
 		pam.set_item(PAM::Authenticator::Requestor, "root");
 	}

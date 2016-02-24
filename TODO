@@ -18,5 +18,5 @@
 2.0.x
 -----
 - restart X server on ctrl-alt-backspace
-- allow switching theme on the fly if a set is specified in slim.conf
+- allow switching theme on the fly if a set is specified in mlogind.conf
 - text alignment, to allow to center texts of unknown length (e.g. %host)

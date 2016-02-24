@@ -1,15 +1,15 @@
-.TH slimlock 1 "June 10, 2011" "version 0.8"
+.TH mloginlock 1 "February 24, 2016" "version 0.9"
 .SH NAME
-\fBslimlock\fP - Unholy Screen Locker
+\fBmloginlock\fP - Unholy Screen Locker
 \fB
 .SH SYNOPSIS
 .nf
 .fam C
-\fBslimlock\fP [-v]
+\fBmloginlock\fP [-v]
 .fam T
 .fi
 .SH DESCRIPTION
-The Frankenstein's monster of screen lockers. Grafting SLiM and slock together
+The Frankenstein's monster of screen lockers. Grafting mlogind and slock together
 leads to blood, tears, and locked screens.
 .SH OPTIONS
 .TP
@@ -17,9 +17,9 @@ leads to blood, tears, and locked screens.
 \fB-v\fP
 display version information
 .SH CONFIGURATION
-Slimlock reads the same configuration files you use for SLiM. It looks in \fICFGDIR/slim.conf\fP and \fICFGDIR/slimlock.conf\fP, where \fICFGDIR\fP is defined in the makefile. The options that are read from slim.conf are hidecursor, current_theme, background_color, and background_style, screenshot_cmd, and welcome_msg. See the SLiM docs for more information.
+Slimlock reads the same configuration files you use for mlogind. It looks in \fICFGDIR/mlogind.conf\fP and \fICFGDIR/mloginlock.conf\fP, where \fICFGDIR\fP is defined in the makefile. The options that are read from mlogind.conf are hidecursor, current_theme, background_color, and background_style, screenshot_cmd, and welcome_msg. See the mlogind docs for more information.
 
-slimlock.conf contains the following settings:
+mloginlock.conf contains the following settings:
 
 .TP
 .B dpms_standby_timeout
@@ -47,7 +47,7 @@ message to display after a failed authentication attempt if the CapsLock is on.
 .BI "Default: " 1
 .TP
 .B show_welcome_msg
-1 to show SLiM's welcome message; 0 to disable.
+1 to show mlogind's welcome message; 0 to disable.
 .BI "Default: " 0
 .TP
 .B tty_lock
@@ -58,4 +58,4 @@ message to display after a failed authentication attempt if the CapsLock is on.
 1 to enable the bell on authentication failure; 0 to disable.
 .BI "Default: " 1
 .SH "SEE ALSO"
-.BR slim (1)
+.BR mlogind (1)

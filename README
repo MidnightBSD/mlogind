@@ -43,7 +43,7 @@ USAGE
     is to take a screenshot if the 'import' program is available.
     
 CONFIGURATION
-    /usr/local/etc/slim.conf is the main configuration file.
+    /usr/local/etc/mlogind.conf is the main configuration file.
     Options are explained in the file itself
     
 THEMES

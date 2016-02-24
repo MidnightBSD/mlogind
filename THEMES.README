@@ -1,15 +1,15 @@
-Quick THEME howto for SLiM
+Quick THEME howto for mlogind
 
-Some basic information regarding the slim theme format.
+Some basic information regarding the mlogind theme format.
 Read this file if you plan to make some theme for
 the program, and of course have a look at the included themes
 
 GENERAL CONCEPT
-    A SLiM theme essentially consists of:
+    A mlogind theme essentially consists of:
     - a background image (background.png or background.jpg)
     - a panel image (panel.png or panel.jpg)
     - input box(es) and messages and their placement
-      and properties (slim.theme)
+      and properties (mlogind.theme)
     
     The panel and background images can be a PNG or JPEG file.
     The panel is blended into the background image,
@@ -23,7 +23,7 @@ SUPPORTED FORMATS
       of the screen.
     
 OPTIONS
-    The following is an example slim.theme file    
+    The following is an example mlogind.theme file    
     ----------------------------------------------------------------------
     # Color, font, position for the messages (ie: shutting down)
     msg_color               #FFFFFF
@@ -95,7 +95,7 @@ SHADOWS
     - y offset: the offset in y direction, relative to the normal text
 
     So to add a text shadow to the welcome message, add the following
-    to slim.conf:
+    to mlogind.conf:
     ----------------------------------------------------------------------
     welcome_shadow_xoffset      -2
     welcome_shadow_yoffset      2

@@ -1,4 +1,5 @@
-/* SLiM - Simple Login Manager
+/* mlogind - MidnightBSD Login Manager
+   Copyright (C) 2016 Lucas Holt <luke@foolishgames.com>
    Copyright (C) 2004-06 Simone Rota <sip@varlock.com>
    Copyright (C) 2004-06 Johannes Winkelmann <jw@tks6.net>
 
@@ -18,9 +19,9 @@
 #define INPUT_MAXLENGTH_NAME	30
 #define INPUT_MAXLENGTH_PASSWD  50
 
-#define CFGFILE SYSCONFDIR"/slim.conf"
+#define CFGFILE SYSCONFDIR"/mlogind.conf"
 #define THEMESDIR PKGDATADIR"/themes"
-#define THEMESFILE "/slim.theme"
+#define THEMESFILE "/mlogind.theme"
 
 class Cfg {
 
