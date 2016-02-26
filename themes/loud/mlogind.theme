@@ -12,7 +12,7 @@ msg_shadow_xoffset 1
 msg_shadow_yoffset 1
 
 # valid values: stretch, tile
-background_style        tile
+background_style        stretch
 background_color        #eedddd
 
 # Input controls
