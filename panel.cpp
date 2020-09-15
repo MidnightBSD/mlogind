@@ -26,7 +26,7 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 	mode = panel_mode;
 
 	session_name = "";
-    session_exec = "";
+	session_exec = "";
 	if (mode == Mode_Lock) {
 		Win = root;
 		viewport = GetPrimaryViewport();
@@ -48,7 +48,7 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 		gcm = GCGraphicsExposures;
 		gcv.graphics_exposures = False;
 		WinGC = XCreateGC(Dpy, Win, gcm, &gcv);
-		if (WinGC < 0) {
+		if (WinGC == NULL) {
 			cerr << APPNAME
 				<< ": failed to create pixmap\n.";
 			exit(ERR_EXIT);
