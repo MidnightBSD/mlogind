@@ -1271,9 +1271,20 @@ void App::CreateServerAuth() {
 }
 
 char* App::StrConcat(const char* str1, const char* str2) {
-	char* tmp = new char[strlen(str1) + strlen(str2) + 1];
-	strcpy(tmp, str1);
-	strcat(tmp, str2);
+	size_t str1len = 0; 
+	size_t str2len = 0;
+	size_t tmplen;
+	if (str1 != NULL)
+		str1len = strlen(str1);
+	if (str2 != NULL)
+		str2len = strlen(str2);
+	tmplen = str1len + str2len + 1;
+	char* tmp = new char[tmplen];
+
+	strlcpy(tmp, str1, tmplen);
+
+	if (str2 != null)
+		strcat(tmp, str2);
 	return tmp;
 }
 
