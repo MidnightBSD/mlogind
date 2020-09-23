@@ -96,11 +96,18 @@ Image::Reduce(const int factor) {
 	int new_area = w * h;
 
 	unsigned char *new_rgb = (unsigned char *) malloc(3 * new_area);
+	if (new_rgb == NULL)
+		return;
+
 	memset(new_rgb, 0, 3 * new_area);
 
 	unsigned char *new_alpha = NULL;
 	if (png_alpha != NULL) {
 		new_alpha = (unsigned char *) malloc(new_area);
+		if (new_alpha == NULL) {
+			free(new_rgb);
+			return;
+		}
 		memset(new_alpha, 0, new_area);
 	}
 
