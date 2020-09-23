@@ -1152,6 +1152,7 @@ void App::GetLock() {
 		int pid = 0;
 		lockfile >> pid;
 		lockfile.close();
+		//  deepcode ignore CppSameEvalBinaryExpressionfalse: read in from file
 		if (pid > 0) {
 			/* see if process with this pid exists */
 			int ret = kill(pid, 0);
