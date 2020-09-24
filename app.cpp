@@ -567,7 +567,7 @@ void App::Login() {
 		return;
 	if (pw->pw_shell[0] == '\0') {
 		setusershell();
-		strcpy(pw->pw_shell, getusershell());
+		pw->pw_shell = strdup(getusershell()); // TODO: leak
 		endusershell();
 	}
 
