@@ -433,10 +433,11 @@ void Image::Crop(const int x, const int y, const int w, const int h) {
 	}
 
 	free(rgb_data);
-	free(png_alpha);
 	rgb_data = new_rgb;
-	if (png_alpha != NULL)
+	if (png_alpha != NULL) {
+		free(png_alpha);
 		png_alpha = new_alpha;
+	}
 	width = w;
 	height = h;
 	area = w * h;
