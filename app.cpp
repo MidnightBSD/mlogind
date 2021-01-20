@@ -1284,7 +1284,7 @@ char* App::StrConcat(const char* str1, const char* str2) {
 
 	strlcpy(tmp, str1, tmplen);
 
-	if (str2 != null)
+	if (str2 != NULL)
 		strcat(tmp, str2);
 	return tmp;
 }
