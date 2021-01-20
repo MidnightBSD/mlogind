@@ -34,7 +34,7 @@ USAGE
     
     Special usernames (commands configurable in the config file):
     - console: start console login
-    - exit: exit SLiM
+    - exit: exit mlogind
     - halt: halt the system
     - reboot: reboot the system
     
