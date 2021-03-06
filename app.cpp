@@ -949,7 +949,8 @@ int App::StartServer() {
 	/* Add mandatory -xauth option */
 	argOption = argOption + " -auth " + cfg->getOption("authfile");
 	char* args = new char[argOption.length()+2]; /* NULL plus vt */
-	strcpy(args, argOption.c_str());
+	strncpy(args, argOption.c_str(), argOption.length()+2);
+	args[argOption.length()+1] = 0;
 
 	serverStarted = false;
 

@@ -39,7 +39,7 @@ width(w), height(h), area(w*h), quality_(80) {
 
 	rgb_data = (unsigned char *) malloc(3 * area);
 	if (!rgb_data) {
-		abort();
+		return;
 	}
 	memcpy(rgb_data, rgb, 3 * area);
 
@@ -47,6 +47,9 @@ width(w), height(h), area(w*h), quality_(80) {
 		png_alpha = NULL;
 	} else {
 		png_alpha = (unsigned char *) malloc(area);
+		if (!png_alpha) {
+			return;
+		}
 		memcpy(png_alpha, alpha, area);
 	}
 }
