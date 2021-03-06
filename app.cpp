@@ -805,8 +805,9 @@ void App::Console() {
 
 	/* Execute console */
 	const char* cmd = cfg->getOption("console_cmd").c_str();
-	char *tmp = new char[strlen(cmd) + 60];
-	sprintf(tmp, cmd, width, height, posx, posy, fontx, fonty);
+	size_t cmd_len = strlen(cmd);
+	char *tmp = new char[cmd_len + 60];
+	snprintf(tmp, cmd_len + 60, cmd, width, height, posx, posy, fontx, fonty);
 	system(tmp);
 	delete [] tmp;
 }
