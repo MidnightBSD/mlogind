@@ -38,6 +38,9 @@ width(w), height(h), area(w*h), quality_(80) {
 	area = w * h;
 
 	rgb_data = (unsigned char *) malloc(3 * area);
+	if (!rgb_data) {
+		abort();
+	}
 	memcpy(rgb_data, rgb, 3 * area);
 
 	if (alpha == NULL) {
