@@ -1301,10 +1301,8 @@ void App::CreateServerAuth() {
 	/* reinitialize auth file */
 	string authfile = cfg->getOption("authfile");
 	remove(authfile.c_str());
-	static char *xauth_env = NULL;
-	delete[] xauth_env;
-	xauth_env = StrConcat("XAUTHORITY=", authfile.c_str());
-	putenv(xauth_env);
+	/* setenv copies the value internally; no manual buffer management needed */
+	setenv("XAUTHORITY", authfile.c_str(), 1);
 	Util::add_mcookie(mcookie, ":0", cfg->getOption("xauth_path"),
 	  authfile);
 }
