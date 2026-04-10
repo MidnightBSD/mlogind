@@ -12,6 +12,9 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include <sstream>
+#include <vector>
+
 #include "util.h"
 
 /*
@@ -70,16 +73,41 @@ bool Util::add_mcookie(const std::string &mcookie, const char *display,
 }
 
 /*
- * Forks and executes cmd via /bin/sh -c, waiting for it to complete.
+ * Forks and executes cmd, waiting for it to complete.
  * Avoids system()'s signal-masking side-effects (system() blocks SIGCHLD
- * and ignores SIGINT/SIGQUIT in the parent).  Shell quoting in cmd is
- * fully supported, which is required for commands such as console_cmd
- * that contain quoted arguments.
+ * and ignores SIGINT/SIGQUIT in the parent).
+ *
+ * If cmd contains no shell metacharacters it is split on whitespace and
+ * executed directly via execvp, keeping the shell entirely out of the
+ * picture and eliminating any injection surface for those commands.
+ * If shell metacharacters are present (e.g. quotes, pipes, redirections)
+ * it falls back to /bin/sh -c so that quoting and pipelines work correctly,
+ * as required by console_cmd's default value.
  */
 void Util::run_command(const std::string &cmd) {
+	static const char shell_metachars[] = "|&;<>()$`\\\"'{[*?~!#\n";
+	bool needs_shell = (cmd.find_first_of(shell_metachars) != std::string::npos);
+
 	pid_t pid = fork();
 	if (pid == 0) {
-		execl("/bin/sh", "sh", "-c", cmd.c_str(), (char *)NULL);
+		if (needs_shell) {
+			execl("/bin/sh", "sh", "-c", cmd.c_str(), (char *)NULL);
+		} else {
+			/* tokenize on whitespace and exec directly, no shell involved */
+			std::vector<std::string> args;
+			std::istringstream iss(cmd);
+			std::string token;
+			while (iss >> token)
+				args.push_back(token);
+			if (args.empty())
+				_exit(0);
+			std::vector<char *> argv;
+			for (std::vector<std::string>::iterator it = args.begin();
+			     it != args.end(); ++it)
+				argv.push_back(&(*it)[0]);
+			argv.push_back(NULL);
+			execvp(argv[0], argv.data());
+		}
 		_exit(127);
 	} else if (pid > 0) {
 		int status;
