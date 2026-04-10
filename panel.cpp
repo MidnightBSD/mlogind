@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <X11/extensions/Xrandr.h>
 #include "panel.h"
+#include "util.h"
 
 using namespace std;
 
@@ -546,7 +547,7 @@ bool Panel::OnKeyPress(XEvent& event) {
 
 		case XK_F11:
 			/* Take a screenshot */
-			system(cfg->getOption("screenshot_cmd").c_str());
+			Util::run_command(cfg->getOption("screenshot_cmd"));
 			return true;
 
 		case XK_Return:

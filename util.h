@@ -15,10 +15,7 @@ namespace Util {
 	bool add_mcookie(const std::string &mcookie, const char *display,
 		const std::string &xauth_cmd, const std::string &authfile);
 
-	void srandom(unsigned long seed);
-	long random(void);
-
-	long makeseed(void);
+	void run_command(const std::string &cmd);
 }
 
 #endif /* _UTIL_H__ */
