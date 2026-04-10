@@ -70,11 +70,11 @@ bool Util::add_mcookie(const std::string &mcookie, const char *display,
 }
 
 /*
- * Forks and executes cmd via /bin/sh, waiting for it to complete.
- * Avoids system()'s signal-masking side-effects and does not invoke
- * a shell when the command string contains no shell metacharacters,
- * while still supporting quoted arguments in complex commands such
- * as console_cmd.
+ * Forks and executes cmd via /bin/sh -c, waiting for it to complete.
+ * Avoids system()'s signal-masking side-effects (system() blocks SIGCHLD
+ * and ignores SIGINT/SIGQUIT in the parent).  Shell quoting in cmd is
+ * fully supported, which is required for commands such as console_cmd
+ * that contain quoted arguments.
  */
 void Util::run_command(const std::string &cmd) {
 	pid_t pid = fork();

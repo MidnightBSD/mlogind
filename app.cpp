@@ -819,7 +819,7 @@ static bool console_cmd_format_safe(const std::string &fmt)
 		if (fmt[i] == '%')
 			continue;      /* %% — literal percent, fine */
 		/* skip optional decimal width/precision (e.g. "10", ".5") */
-		while (i < fmt.size() && (isdigit(fmt[i]) || fmt[i] == '.'))
+		while (i < fmt.size() && (isdigit((unsigned char)fmt[i]) || fmt[i] == '.'))
 			i++;
 		if (i >= fmt.size())
 			return false;
@@ -1299,7 +1299,7 @@ void App::CreateServerAuth() {
 		mcookie[i+1] = digits[buf[i/2] >> 4];
 	}
 	/* reinitialize auth file */
-	authfile = cfg->getOption("authfile");
+	string authfile = cfg->getOption("authfile");
 	remove(authfile.c_str());
 	static char *xauth_env = NULL;
 	delete[] xauth_env;
