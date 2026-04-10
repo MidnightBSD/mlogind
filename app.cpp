@@ -144,10 +144,11 @@ static void AddToEnv(char*** curr_env, const char *name, const char *value) {
 	n++;
 	char** new_env = static_cast<char**>(malloc(sizeof(char*) * (n + 1)));
 	memcpy(new_env, *curr_env, sizeof(char*) * n);
-	char* entry = static_cast<char*>(malloc(strlen(name) + strlen(value) + 2));
-	strcpy(entry, name);
-	strcat(entry, "=");
-	strcat(entry, value);
+	size_t entry_len = strlen(name) + strlen(value) + 2;
+	char* entry = static_cast<char*>(malloc(entry_len));
+	strlcpy(entry, name, entry_len);
+	strlcat(entry, "=", entry_len);
+	strlcat(entry, value, entry_len);
 	new_env[n-1] = entry;
 	new_env[n] = NULL;
 	free(*curr_env);
@@ -570,8 +571,11 @@ void App::Login() {
 		return;
 	if (pw->pw_shell[0] == '\0') {
 		setusershell();
-		pw->pw_shell = strdup(getusershell()); // TODO: leak
+		char *shell = strdup(getusershell());
 		endusershell();
+		if (shell)
+			pw->pw_shell = shell;
+		/* shell is freed when this child process exits */
 	}
 
 	/* Setup the environment */
@@ -1297,7 +1301,10 @@ void App::CreateServerAuth() {
 	/* reinitialize auth file */
 	authfile = cfg->getOption("authfile");
 	remove(authfile.c_str());
-	putenv(StrConcat("XAUTHORITY=", authfile.c_str()));
+	static char *xauth_env = NULL;
+	delete[] xauth_env;
+	xauth_env = StrConcat("XAUTHORITY=", authfile.c_str());
+	putenv(xauth_env);
 	Util::add_mcookie(mcookie, ":0", cfg->getOption("xauth_path"),
 	  authfile);
 }

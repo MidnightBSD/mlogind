@@ -225,7 +225,8 @@ string Cfg::getWelcomeMessage(){
 	if (n >= 0) {
 		string tmp = s.substr(0, n);
 		char host[40];
-		gethostname(host,40);
+		gethostname(host, sizeof(host));
+		host[sizeof(host) - 1] = '\0';
 		tmp = tmp + host;
 		tmp = tmp + s.substr(n+5, s.size() - n);
 		s = tmp;
@@ -234,7 +235,8 @@ string Cfg::getWelcomeMessage(){
 	if (n >= 0) {
 		string tmp = s.substr(0, n);;
 		char domain[40];
-		getdomainname(domain,40);
+		getdomainname(domain, sizeof(domain));
+		domain[sizeof(domain) - 1] = '\0';
 		tmp = tmp + domain;
 		tmp = tmp + s.substr(n+7, s.size() - n);
 		s = tmp;
