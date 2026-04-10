@@ -86,14 +86,21 @@ Image::Read(const char *filename) {
 	else if ((ubuf[0] == 0xff) && (ubuf[1] == 0xd8))
 		success = readJpeg(filename, &width, &height, &rgb_data);
 	else {
-		/* Check for SVG by file extension */
 		const char *ext = strrchr(filename, '.');
+#ifdef USE_RSVG
 		if (ext && strcasecmp(ext, ".svg") == 0)
 			success = readSvg(filename, &width, &height, &rgb_data, &png_alpha);
 		else {
 			fprintf(stderr, "Unknown image format\n");
 			success = 0;
 		}
+#else
+		if (ext && strcasecmp(ext, ".svg") == 0)
+			fprintf(stderr, "SVG background not supported: rebuild with -DUSE_RSVG=ON\n");
+		else
+			fprintf(stderr, "Unknown image format\n");
+		success = 0;
+#endif
 	}
 	return(success == 1);
 }
@@ -1030,6 +1037,7 @@ Image::readSvg(const char *filename, int *w, int *h,
         CAIRO_FORMAT_ARGB32, svg_w, svg_h);
     if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
         fprintf(stderr, "readSvg: could not create Cairo surface\n");
+        cairo_surface_destroy(surface);
         g_object_unref(handle);
         return 0;
     }
