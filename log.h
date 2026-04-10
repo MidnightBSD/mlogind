@@ -22,20 +22,26 @@ public:
 
 	template<typename Type>
 	LogUnit & operator<<(const Type & text) {
-		if (logFile.is_open())
-			logFile << text; logFile.flush();
+		if (logFile.is_open()) {
+			logFile << text;
+			logFile.flush();
+		}
 		return *this;
 	}
 
 	LogUnit & operator<<(ostream & (*fp)(ostream&)) {
-		if (logFile.is_open())
-			logFile << fp; logFile.flush();
+		if (logFile.is_open()) {
+			logFile << fp;
+			logFile.flush();
+		}
 		return *this;
 	}
 
 	LogUnit & operator<<(ios_base & (*fp)(ios_base&)) {
-		if (logFile.is_open())
-			logFile << fp; logFile.flush();
+		if (logFile.is_open()) {
+			logFile << fp;
+			logFile.flush();
+		}
 		return *this;
 	}
 } logStream;

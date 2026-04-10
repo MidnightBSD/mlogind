@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
 
 set(PROJECT_NAME mlogind)
 project(${PROJECT_NAME})
