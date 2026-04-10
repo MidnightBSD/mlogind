@@ -1182,10 +1182,13 @@ void App::setBackground(const string& themedir) {
 }
 
 /* Write the current PID into an open lock file descriptor. */
-static void WriteLockPid(int fd) {
+static bool WriteLockPid(int fd) {
 	char buf[32];
-	snprintf(buf, sizeof(buf), "%d\n", getpid());
-	write(fd, buf, strlen(buf));
+	int len = snprintf(buf, sizeof(buf), "%d\n", getpid());
+	if (len <= 0 || (size_t)len >= sizeof(buf))
+		return false;
+	ssize_t written = write(fd, buf, (size_t)len);
+	return (written == (ssize_t)len);
 }
 
 /* Check if there is a lockfile and a corresponding process.
@@ -1196,7 +1199,12 @@ void App::GetLock() {
 	/* Attempt atomic creation */
 	int fd = open(lockpath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd >= 0) {
-		WriteLockPid(fd);
+		if (!WriteLockPid(fd)) {
+			logStream << APPNAME << ": Failed to write PID to lock file: " << lockpath << std::endl;
+			close(fd);
+			unlink(lockpath.c_str());
+			exit(ERR_EXIT);
+		}
 		close(fd);
 		return;
 	}
@@ -1230,7 +1238,12 @@ void App::GetLock() {
 		logStream << APPNAME << ": Could not create lock file: " << lockpath << std::endl;
 		exit(ERR_EXIT);
 	}
-	WriteLockPid(fd);
+	if (!WriteLockPid(fd)) {
+		logStream << APPNAME << ": Failed to write PID to lock file: " << lockpath << std::endl;
+		close(fd);
+		unlink(lockpath.c_str());
+		exit(ERR_EXIT);
+	}
 	close(fd);
 }
 

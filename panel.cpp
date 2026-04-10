@@ -202,8 +202,10 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 
 	if (mode == Mode_Lock) {
 		const char *user_env = getenv("USER");
-		if (user_env != NULL && strlen(user_env) <= 32)
-			SetName(user_env);
+		if (user_env != NULL) {
+			string username(user_env, strnlen(user_env, 32));
+			SetName(username);
+		}
 		field = Get_Passwd;
 		OnExpose();
 	}
