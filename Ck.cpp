@@ -47,7 +47,7 @@ namespace Ck {
 
   const char * Session::get_x11_device(const std::string &display)
   {
-	static char device[32];
+	static char device[64];
 
 	Display *xdisplay = XOpenDisplay(display.c_str());
 
@@ -91,7 +91,7 @@ namespace Ck {
 
 	vt = *((long *)return_value);
 
-	snprintf(device, 32, "/dev/ttyv%ld", vt - 1);
+	snprintf(device, sizeof(device), "/dev/ttyv%ld", vt - 1);
 
 	if(return_value)
 	  XFree(return_value);

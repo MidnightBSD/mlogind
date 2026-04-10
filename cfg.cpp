@@ -275,7 +275,7 @@ void Cfg::split(vector<string>& v, const string& str, char c, bool useEmpty) {
 	string tmp;
 	while (true) {
 		string::const_iterator begin = s;
-		while (*s != c && s != str.end()) { ++s; }
+		while (s != str.end() && *s != c) { ++s; }
 	tmp = string(begin, s);
 	if (useEmpty || tmp.size() > 0)
 			v.push_back(tmp);
