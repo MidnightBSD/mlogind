@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdint.h>
 #include <iostream>
 
 using namespace std;
@@ -1073,22 +1074,31 @@ Image::readSvg(const char *filename, int *w, int *h,
     }
 
     /*
-     * Unpack BGRA (premultiplied) → separate RGB and alpha buffers.
-     * Byte order within each 32-bit pixel on little-endian:
-     *   byte 0 = Blue, byte 1 = Green, byte 2 = Red, byte 3 = Alpha
+     * Unpack premultiplied ARGB32 → separate RGB and alpha buffers.
+     *
+     * Cairo defines CAIRO_FORMAT_ARGB32 as a native 32-bit integer with
+     * channel layout 0xAARRGGBB regardless of host endianness.  Reading
+     * the pixel as uint32_t and extracting channels with bit-shifts is
+     * therefore portable across both little- and big-endian systems,
+     * unlike direct byte-index access which assumes a specific byte order.
      */
     for (int y = 0; y < svg_h; y++) {
         const unsigned char *row = data + y * stride;
         for (int x = 0; x < svg_w; x++) {
-            const unsigned char *px  = row + x * 4;
+            uint32_t             pixel;
             unsigned char       *dst = *rgb + (y * svg_w + x) * 3;
-            unsigned char        a   = px[3];
+
+            memcpy(&pixel, row + x * 4, sizeof(pixel));
+            unsigned char a = (unsigned char)((pixel >> 24) & 0xffu);
+            unsigned char r = (unsigned char)((pixel >> 16) & 0xffu);
+            unsigned char g = (unsigned char)((pixel >>  8) & 0xffu);
+            unsigned char b = (unsigned char)( pixel        & 0xffu);
 
             if (a > 0) {
                 /* Undo premultiplied alpha */
-                dst[0] = (unsigned char)((unsigned int)px[2] * 255u / a);
-                dst[1] = (unsigned char)((unsigned int)px[1] * 255u / a);
-                dst[2] = (unsigned char)((unsigned int)px[0] * 255u / a);
+                dst[0] = (unsigned char)((unsigned int)r * 255u / a);
+                dst[1] = (unsigned char)((unsigned int)g * 255u / a);
+                dst[2] = (unsigned char)((unsigned int)b * 255u / a);
             } else {
                 dst[0] = dst[1] = dst[2] = 0;
             }
