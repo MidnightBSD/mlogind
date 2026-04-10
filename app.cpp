@@ -1149,8 +1149,12 @@ void App::setBackground(const string& themedir) {
 	filename = themedir + "/background.png";
 	image = new Image;
 	bool loaded = image->Read(filename.c_str());
-	if (!loaded){ /* try jpeg if png failed */
+	if (!loaded) { /* try jpeg */
 		filename = themedir + "/background.jpg";
+		loaded = image->Read(filename.c_str());
+	}
+	if (!loaded) { /* try SVG */
+		filename = themedir + "/background.svg";
 		loaded = image->Read(filename.c_str());
 	}
 	if (loaded) {

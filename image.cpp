@@ -26,6 +26,12 @@ using namespace std;
 extern "C" {
 	#include <jpeglib.h>
 	#include <png.h>
+#ifdef USE_RSVG
+	#include <cairo/cairo.h>
+	G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+	#include <librsvg/rsvg.h>
+	G_GNUC_END_IGNORE_DEPRECATIONS
+#endif
 }
 
 Image::Image() : width(0), height(0), area(0),
@@ -80,8 +86,14 @@ Image::Read(const char *filename) {
 	else if ((ubuf[0] == 0xff) && (ubuf[1] == 0xd8))
 		success = readJpeg(filename, &width, &height, &rgb_data);
 	else {
-		fprintf(stderr, "Unknown image format\n");
-		success = 0;
+		/* Check for SVG by file extension */
+		const char *ext = strrchr(filename, '.');
+		if (ext && strcasecmp(ext, ".svg") == 0)
+			success = readSvg(filename, &width, &height, &rgb_data, &png_alpha);
+		else {
+			fprintf(stderr, "Unknown image format\n");
+			success = 0;
+		}
 	}
 	return(success == 1);
 }
@@ -961,5 +973,127 @@ png_destroy:
 file_close:
 	fclose(infile);
 	return(ret);
+}
+
+/*
+ * Render an SVG file to an RGB+alpha pixel buffer using librsvg and Cairo.
+ * The SVG is rendered at its natural (intrinsic) dimensions; the caller's
+ * existing Resize/Tile/Center logic handles scaling to screen size.
+ *
+ * Cairo ARGB32 surfaces store premultiplied BGRA in native byte order on
+ * little-endian systems.  We undo the premultiplication and unpack into
+ * separate RGB and alpha buffers to match the layout expected by the rest
+ * of the Image class.
+ *
+ * Only compiled when USE_RSVG is defined (pass -DUSE_RSVG=ON to cmake).
+ */
+int
+Image::readSvg(const char *filename, int *w, int *h,
+               unsigned char **rgb, unsigned char **alpha)
+{
+#ifdef USE_RSVG
+    GError *error = NULL;
+
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    RsvgHandle *handle = rsvg_handle_new_from_file(filename, &error);
+    G_GNUC_END_IGNORE_DEPRECATIONS
+
+    if (!handle) {
+        fprintf(stderr, "readSvg: could not load %s: %s\n",
+                filename, error ? error->message : "unknown error");
+        if (error) g_error_free(error);
+        return 0;
+    }
+
+    /* Obtain natural (intrinsic) pixel dimensions */
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    RsvgDimensionData dim;
+    rsvg_handle_get_dimensions(handle, &dim);
+    G_GNUC_END_IGNORE_DEPRECATIONS
+
+    int svg_w = dim.width;
+    int svg_h = dim.height;
+
+    /* Fall back to a sensible default for dimensionless SVGs */
+    if (svg_w <= 0) svg_w = 1920;
+    if (svg_h <= 0) svg_h = 1080;
+
+    if (svg_w >= MAX_DIMENSION || svg_h >= MAX_DIMENSION) {
+        fprintf(stderr, "readSvg: unreasonable dimensions %dx%d in %s\n",
+                svg_w, svg_h, filename);
+        g_object_unref(handle);
+        return 0;
+    }
+
+    /* Render into a Cairo ARGB32 surface */
+    cairo_surface_t *surface = cairo_image_surface_create(
+        CAIRO_FORMAT_ARGB32, svg_w, svg_h);
+    if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+        fprintf(stderr, "readSvg: could not create Cairo surface\n");
+        g_object_unref(handle);
+        return 0;
+    }
+
+    cairo_t *cr = cairo_create(surface);
+
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    rsvg_handle_render_cairo(handle, cr);
+    G_GNUC_END_IGNORE_DEPRECATIONS
+
+    cairo_destroy(cr);
+    g_object_unref(handle);
+    cairo_surface_flush(surface);
+
+    const unsigned char *data   = cairo_image_surface_get_data(surface);
+    int                  stride = cairo_image_surface_get_stride(surface);
+
+    *w = svg_w;
+    *h = svg_h;
+
+    *rgb = (unsigned char *)malloc(3 * svg_w * svg_h);
+    if (!*rgb) {
+        cairo_surface_destroy(surface);
+        return 0;
+    }
+
+    *alpha = (unsigned char *)malloc(svg_w * svg_h);
+    if (!*alpha) {
+        free(*rgb);
+        *rgb = NULL;
+        cairo_surface_destroy(surface);
+        return 0;
+    }
+
+    /*
+     * Unpack BGRA (premultiplied) → separate RGB and alpha buffers.
+     * Byte order within each 32-bit pixel on little-endian:
+     *   byte 0 = Blue, byte 1 = Green, byte 2 = Red, byte 3 = Alpha
+     */
+    for (int y = 0; y < svg_h; y++) {
+        const unsigned char *row = data + y * stride;
+        for (int x = 0; x < svg_w; x++) {
+            const unsigned char *px  = row + x * 4;
+            unsigned char       *dst = *rgb + (y * svg_w + x) * 3;
+            unsigned char        a   = px[3];
+
+            if (a > 0) {
+                /* Undo premultiplied alpha */
+                dst[0] = (unsigned char)((unsigned int)px[2] * 255u / a);
+                dst[1] = (unsigned char)((unsigned int)px[1] * 255u / a);
+                dst[2] = (unsigned char)((unsigned int)px[0] * 255u / a);
+            } else {
+                dst[0] = dst[1] = dst[2] = 0;
+            }
+            (*alpha)[y * svg_w + x] = a;
+        }
+    }
+
+    cairo_surface_destroy(surface);
+    return 1;
+#else
+    (void)filename; (void)w; (void)h; (void)rgb; (void)alpha;
+    fprintf(stderr, "readSvg: SVG support not compiled in\n");
+    return 0;
+#endif
 }
 

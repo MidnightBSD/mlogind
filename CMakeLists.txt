@@ -115,6 +115,7 @@ find_package(Freetype REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(PkgConfig)
 
 # Fontconfig
 set(FONTCONFIG_DIR ${CMAKE_MODULE_PATH})
@@ -124,6 +125,23 @@ if(FONTCONFIG_FOUND)
 	target_link_libraries(${PROJECT_NAME} ${FONTCONFIG_LIBRARY})
 	include_directories(${FONTCONFIG_INCLUDE_DIR})
 endif(FONTCONFIG_FOUND)
+
+# SVG support via librsvg
+if(USE_RSVG)
+	if(PKG_CONFIG_FOUND)
+		pkg_check_modules(RSVG librsvg-2.0)
+		if(RSVG_FOUND)
+			message("\tlibrsvg Found — SVG backgrounds enabled")
+			set(MLOGIND_DEFINITIONS ${MLOGIND_DEFINITIONS} "-DUSE_RSVG")
+			include_directories(${RSVG_INCLUDE_DIRS})
+			target_link_libraries(libmlogin ${RSVG_LIBRARIES})
+		else()
+			message("\tlibrsvg Not Found — SVG backgrounds disabled")
+		endif()
+	else()
+		message("\tpkg-config not available — SVG backgrounds disabled")
+	endif()
+endif()
 
 # PAM
 if(USE_PAM)

@@ -75,6 +75,8 @@ private:
 		unsigned char **rgb);
 	int readPng(const char *filename, int *width, int *height,
 		unsigned char **rgb, unsigned char **alpha);
+	int readSvg(const char *filename, int *width, int *height,
+		unsigned char **rgb, unsigned char **alpha);
 };
 
 #endif /* _IMAGE_H_ */
