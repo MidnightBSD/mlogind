@@ -201,7 +201,11 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 	intro_message = cfg->getOption("intro_msg");
 
 	if (mode == Mode_Lock) {
-		SetName(getenv("USER"));
+		const char *user_env = getenv("USER");
+		if (user_env != NULL) {
+			string username(user_env, strnlen(user_env, 32));
+			SetName(username);
+		}
 		field = Get_Passwd;
 		OnExpose();
 	}

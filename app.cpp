@@ -291,7 +291,6 @@ void App::Run() {
 		setenv("DISPLAY", DisplayName, 1);
 		signal(SIGQUIT, CatchSignal);
 		signal(SIGTERM, CatchSignal);
-		signal(SIGKILL, CatchSignal);
 		signal(SIGINT, CatchSignal);
 		signal(SIGHUP, CatchSignal);
 		signal(SIGPIPE, CatchSignal);
@@ -993,9 +992,9 @@ int App::StartServer() {
 	string argOption = cfg->getOption("xserver_arguments");
 	/* Add mandatory -xauth option */
 	argOption = argOption + " -auth " + cfg->getOption("authfile");
-	char* args = new char[argOption.length()+2]; /* NULL plus vt */
-	strncpy(args, argOption.c_str(), argOption.length()+2);
-	args[argOption.length()+1] = 0;
+	size_t args_len = argOption.length() + 2; /* +1 for null, +1 for vt token */
+	char* args = new char[args_len];
+	strlcpy(args, argOption.c_str(), args_len);
 
 	serverStarted = false;
 
@@ -1182,42 +1181,70 @@ void App::setBackground(const string& themedir) {
 	delete image;
 }
 
-/* Check if there is a lockfile and a corresponding process */
+/* Write the current PID into an open lock file descriptor. */
+static bool WriteLockPid(int fd) {
+	char buf[32];
+	int len = snprintf(buf, sizeof(buf), "%d\n", getpid());
+	if (len <= 0 || (size_t)len >= sizeof(buf))
+		return false;
+	ssize_t written = write(fd, buf, (size_t)len);
+	return (written == (ssize_t)len);
+}
+
+/* Check if there is a lockfile and a corresponding process.
+ * Uses O_CREAT|O_EXCL for atomic creation to avoid TOCTOU races. */
 void App::GetLock() {
-	std::ifstream lockfile(cfg->getOption("lockfile").c_str());
-	if (!lockfile) {
-		/* no lockfile present, create one */
-		std::ofstream lockfile(cfg->getOption("lockfile").c_str(), ios_base::out);
-		if (!lockfile) {
-			logStream << APPNAME << ": Could not create lock file: " << cfg->getOption("lockfile").c_str() << std::endl;
+	string lockpath = cfg->getOption("lockfile");
+
+	/* Attempt atomic creation */
+	int fd = open(lockpath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+	if (fd >= 0) {
+		if (!WriteLockPid(fd)) {
+			logStream << APPNAME << ": Failed to write PID to lock file: " << lockpath << std::endl;
+			close(fd);
+			unlink(lockpath.c_str());
 			exit(ERR_EXIT);
 		}
-		lockfile << getpid() << std::endl;
-		lockfile.close();
-	} else {
-		/* lockfile present, read pid from it */
-		int pid = 0;
-		lockfile >> pid;
-		lockfile.close();
-		//  deepcode ignore CppSameEvalBinaryExpressionfalse: read in from file
-		if (pid > 0) {
-			/* see if process with this pid exists */
-			int ret = kill(pid, 0);
-			if (ret == 0 || (ret == -1 && errno == EPERM) ) {
-				logStream << APPNAME << ": Another instance of the program is already running with PID " << pid << std::endl;
-				exit(0);
-			} else {
-				logStream << APPNAME << ": Stale lockfile found, removing it" << std::endl;
-				std::ofstream lockfile(cfg->getOption("lockfile").c_str(), ios_base::out);
-				if (!lockfile) {
-					logStream << APPNAME << ": Could not create new lock file: " << cfg->getOption("lockfile") << std::endl;
-					exit(ERR_EXIT);
-				}
-				lockfile << getpid() << std::endl;
-				lockfile.close();
-			}
+		close(fd);
+		return;
+	}
+
+	if (errno != EEXIST) {
+		logStream << APPNAME << ": Could not create lock file: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+
+	/* Lock file exists — read the PID and check if the process is alive */
+	int pid = 0;
+	std::ifstream existing(lockpath.c_str());
+	if (existing) {
+		existing >> pid;
+		existing.close();
+	}
+
+	if (pid > 0) {
+		int ret = kill(pid, 0);
+		if (ret == 0 || (ret == -1 && errno == EPERM)) {
+			logStream << APPNAME << ": Another instance of the program is already running with PID " << pid << std::endl;
+			exit(0);
 		}
 	}
+
+	/* Stale lock — remove and re-create atomically */
+	logStream << APPNAME << ": Stale lockfile found, removing it" << std::endl;
+	unlink(lockpath.c_str());
+	fd = open(lockpath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+	if (fd < 0) {
+		logStream << APPNAME << ": Could not create lock file: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+	if (!WriteLockPid(fd)) {
+		logStream << APPNAME << ": Failed to write PID to lock file: " << lockpath << std::endl;
+		close(fd);
+		unlink(lockpath.c_str());
+		exit(ERR_EXIT);
+	}
+	close(fd);
 }
 
 /* Remove lockfile and close logs */
@@ -1321,7 +1348,7 @@ char* App::StrConcat(const char* str1, const char* str2) {
 	strlcpy(tmp, str1, tmplen);
 
 	if (str2 != NULL)
-		strcat(tmp, str2);
+		strlcat(tmp, str2, tmplen);
 	return tmp;
 }
 

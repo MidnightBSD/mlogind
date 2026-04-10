@@ -92,9 +92,9 @@ int main(int argc, char **argv) {
 
 	// try /run/lock first, since i believe it's preferred
 	if (!stat("/run/lock", &statbuf))
-		lock_file = open("/run/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0666);
+		lock_file = open("/run/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0644);
 	else
-		lock_file = open("/var/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0666);
+		lock_file = open("/var/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0644);
 
 	int rc = flock(lock_file, LOCK_EX | LOCK_NB);
 
