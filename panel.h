@@ -146,6 +146,10 @@ private:
 	XftFont *clockfont;
 	XftColor clockcolor;
 	XftColor clockshadowcolor;
+	Rectangle last_clock_rect;
+
+	Visual* visual;
+	Colormap colormap;
 
 	ActionType action;
 	FieldType field;

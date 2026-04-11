@@ -56,28 +56,36 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 		}
 	}
 
+	visual = DefaultVisual(Dpy, Scr);
+	colormap = DefaultColormap(Dpy, Scr);
+
 	font = XftFontOpenName(Dpy, Scr, cfg->getOption("input_font").c_str());
 	welcomefont = XftFontOpenName(Dpy, Scr, cfg->getOption("welcome_font").c_str());
 	introfont = XftFontOpenName(Dpy, Scr, cfg->getOption("intro_font").c_str());
 	enterfont = XftFontOpenName(Dpy, Scr, cfg->getOption("username_font").c_str());
 	msgfont = XftFontOpenName(Dpy, Scr, cfg->getOption("msg_font").c_str());
+	sessionfont = XftFontOpenName(Dpy, Scr, cfg->getOption("session_font").c_str());
 
-	Visual* visual = DefaultVisual(Dpy, Scr);
-	Colormap colormap = DefaultColormap(Dpy, Scr);
+	if (!font || !welcomefont || !introfont || !enterfont || !msgfont || !sessionfont) {
+		cerr << APPNAME << ": could not open one or more fonts." << endl;
+		exit(ERR_EXIT);
+	}
+
 	/* NOTE: using XftColorAllocValue() would be a better solution. Lazy me. */
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("input_color").c_str(), &inputcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("input_shadow_color").c_str(), &inputshadowcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("welcome_color").c_str(), &welcomecolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("welcome_shadow_color").c_str(), &welcomeshadowcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("username_color").c_str(), &entercolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("username_shadow_color").c_str(), &entershadowcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("msg_color").c_str(), &msgcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("msg_shadow_color").c_str(), &msgshadowcolor);
-	XftColorAllocName(Dpy, visual, colormap, cfg->getOption("intro_color").c_str(), &introcolor);
-	XftColorAllocName(Dpy, visual, colormap,
-					  cfg->getOption("session_color").c_str(), &sessioncolor);
-	XftColorAllocName(Dpy, visual, colormap,
-					  cfg->getOption("session_shadow_color").c_str(), &sessionshadowcolor);
+	if (!XftColorAllocName(Dpy, visual, colormap, cfg->getOption("input_color").c_str(), &inputcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("input_shadow_color").c_str(), &inputshadowcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("welcome_color").c_str(), &welcomecolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("welcome_shadow_color").c_str(), &welcomeshadowcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("username_color").c_str(), &entercolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("username_shadow_color").c_str(), &entershadowcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("msg_color").c_str(), &msgcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("msg_shadow_color").c_str(), &msgshadowcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("intro_color").c_str(), &introcolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("session_color").c_str(), &sessioncolor) ||
+	    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("session_shadow_color").c_str(), &sessionshadowcolor)) {
+		cerr << APPNAME << ": could not allocate one or more colors." << endl;
+		exit(ERR_EXIT);
+	}
 
 	/* Load clock config */
 	show_clock_enabled = cfg->getOption("show_clock") == "yes";
@@ -89,8 +97,18 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 
 	if (show_clock_enabled) {
 		clockfont = XftFontOpenName(Dpy, Scr, cfg->getOption("clock_font").c_str());
-		XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_color").c_str(), &clockcolor);
-		XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_shadow_color").c_str(), &clockshadowcolor);
+		if (!clockfont) {
+			cerr << APPNAME << ": could not open clock font." << endl;
+			show_clock_enabled = false;
+		} else {
+			if (!XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_color").c_str(), &clockcolor) ||
+			    !XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_shadow_color").c_str(), &clockshadowcolor)) {
+				cerr << APPNAME << ": could not allocate clock colors." << endl;
+				show_clock_enabled = false;
+				XftFontClose(Dpy, clockfont);
+				clockfont = NULL;
+			}
+		}
 	} else {
 		clockfont = NULL;
 	}
@@ -228,9 +246,6 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 }
 
 Panel::~Panel() {
-	Visual* visual = DefaultVisual(Dpy, Scr);
-	Colormap colormap = DefaultColormap(Dpy, Scr);
-
 	XftColorFree(Dpy, visual, colormap, &inputcolor);
 	XftColorFree(Dpy, visual, colormap, &inputshadowcolor);
 	XftColorFree(Dpy, visual, colormap, &welcomecolor);
@@ -255,6 +270,7 @@ Panel::~Panel() {
 	XftFontClose(Dpy, introfont);
 	XftFontClose(Dpy, welcomefont);
 	XftFontClose(Dpy, enterfont);
+	XftFontClose(Dpy, sessionfont);
 
 	if (mode == Mode_Lock)
 		XFreeGC(Dpy, WinGC);
@@ -315,7 +331,7 @@ void Panel::WrongPassword(int timeout) {
 	message = cfg->getOption("passwd_feedback_msg");
 
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
-		DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+		visual, colormap);
 		XftTextExtents8(Dpy, msgfont, reinterpret_cast<const XftChar8*>(message.c_str()),
 		message.length(), &extents);
 
@@ -352,10 +368,10 @@ void Panel::Message(const string& text) {
 
 	if (mode == Mode_Lock)
 		draw = XftDrawCreate(Dpy, Win,
-			DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+			visual, colormap);
 	else
 		draw = XftDrawCreate(Dpy, Root,
-			DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+			visual, colormap);
 
 	XftTextExtents8(Dpy, msgfont,
 		reinterpret_cast<const XftChar8*>(text.c_str()),
@@ -500,7 +516,7 @@ void Panel::EventHandler(const Panel::FieldType& curfield) {
 
 void Panel::OnExpose(void) {
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
-		DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+		visual, colormap);
 
 	if (mode == Mode_Lock)
 		ApplyBackground();
@@ -664,7 +680,7 @@ bool Panel::OnKeyPress(XEvent& event) {
 
 	XGlyphInfo extents;
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
-			  DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+			  visual, colormap);
 
 	switch(field) {
 		case Get_Name:
@@ -722,7 +738,7 @@ void Panel::ShowText(){
 	input_name_y == input_pass_y;
 
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
-		  DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+		  visual, colormap);
 	/* welcome message */
 	XftTextExtents8(Dpy, welcomefont, (XftChar8*)welcome_message.c_str(),
 					strlen(welcome_message.c_str()), &extents);
@@ -806,10 +822,8 @@ void Panel::ShowSession() {
 	string currsession = cfg->getOption("session_msg") + " " + session_name;
 	XGlyphInfo extents;
 
-	sessionfont = XftFontOpenName(Dpy, Scr, cfg->getOption("session_font").c_str());
-
 	XftDraw *draw = XftDrawCreate(Dpy, Root,
-								  DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+								  visual, colormap);
 	XftTextExtents8(Dpy, sessionfont, reinterpret_cast<const XftChar8*>(currsession.c_str()),
 					currsession.length(), &extents);
 	msg_x = cfg->getOption("session_x");
@@ -828,7 +842,7 @@ void Panel::ShowSession() {
 }
 
 void Panel::ShowClock(XftDraw *draw) {
-	if (!show_clock_enabled) return;
+	if (!show_clock_enabled || !clockfont) return;
 
 	time_t rawtime;
 	struct tm *timeinfo;
@@ -838,12 +852,6 @@ void Panel::ShowClock(XftDraw *draw) {
 	timeinfo = localtime(&rawtime);
 	strftime(buffer, sizeof(buffer), clock_format.c_str(), timeinfo);
 	string clock_str(buffer);
-
-	bool local_draw = false;
-	if (!draw) {
-		draw = XftDrawCreate(Dpy, Win, DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
-		local_draw = true;
-	}
 
 	XGlyphInfo extents;
 	XftTextExtents8(Dpy, clockfont, reinterpret_cast<const XftChar8*>(clock_str.c_str()),
@@ -862,11 +870,45 @@ void Panel::ShowClock(XftDraw *draw) {
 		y = Cfg::absolutepos(clock_y_str, image->Height(), extents.height);
 	}
 
-	// In DM mode, we need to clear the area first if it's not a temporary draw
-	// But since we draw on Win which is the panel window, we can just redraw.
-	// Actually, redrawing over the same spot might cause artifacts if the text changes length.
-	// For now, let's just draw.
-	
+	// Calculate current bounding box including shadow
+	Rectangle current_rect;
+	current_rect.x = x - extents.x;
+	current_rect.y = y - extents.y;
+	current_rect.width = extents.width;
+	current_rect.height = extents.height;
+
+	if (clock_shadow_xoffset > 0) {
+		current_rect.width += clock_shadow_xoffset;
+	} else if (clock_shadow_xoffset < 0) {
+		current_rect.x += clock_shadow_xoffset;
+		current_rect.width -= clock_shadow_xoffset;
+	}
+
+	if (clock_shadow_yoffset > 0) {
+		current_rect.height += clock_shadow_yoffset;
+	} else if (clock_shadow_yoffset < 0) {
+		current_rect.y += clock_shadow_yoffset;
+		current_rect.height -= clock_shadow_yoffset;
+	}
+
+	// Clear previous clock area
+	if (!last_clock_rect.is_empty()) {
+		if (mode == Mode_Lock) {
+			ApplyBackground(last_clock_rect);
+		} else {
+			XClearArea(Dpy, Win, last_clock_rect.x, last_clock_rect.y,
+					   last_clock_rect.width, last_clock_rect.height, false);
+		}
+	}
+	last_clock_rect = current_rect;
+
+	bool local_draw = false;
+	if (!draw) {
+		draw = XftDrawCreate(Dpy, Win, visual, colormap);
+		if (!draw) return;
+		local_draw = true;
+	}
+
 	SlimDrawString8(draw, &clockcolor, clockfont, x, y,
 					clock_str,
 					&clockshadowcolor,
