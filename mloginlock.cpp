@@ -12,7 +12,9 @@
 #include <algorithm>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#ifdef __linux__
 #include <linux/vt.h>
+#endif
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -74,9 +76,9 @@ die(const char *errstr, ...) {
 
 int main(int argc, char **argv) {
 	if((argc == 2) && !strcmp("-v", argv[1]))
-		die(APPNAME"-"VERSION", © 2010-2012 Joel Burget\n");
+		die(APPNAME " " VERSION ", © 2010-2012 Joel Burget\n");
 	else if(argc != 1)
-		die("usage: "APPNAME" [-v]\n");
+		die("usage: " APPNAME " [-v]\n");
 
 	void (*prev_fn)(int);
 
@@ -92,9 +94,9 @@ int main(int argc, char **argv) {
 
 	// try /run/lock first, since i believe it's preferred
 	if (!stat("/run/lock", &statbuf))
-		lock_file = open("/run/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0644);
+		lock_file = open("/run/lock/" APPNAME ".lock", O_CREAT | O_RDWR, 0644);
 	else
-		lock_file = open("/var/lock/"APPNAME".lock", O_CREAT | O_RDWR, 0644);
+		lock_file = open("/var/lock/" APPNAME ".lock", O_CREAT | O_RDWR, 0644);
 
 	int rc = flock(lock_file, LOCK_EX | LOCK_NB);
 
@@ -188,11 +190,15 @@ int main(int argc, char **argv) {
 
 	// disable tty switching
 	if(cfg->getOption("tty_lock") == "1") {
+#ifdef VT_LOCKSWITCH
 		if ((term = open("/dev/console", O_RDWR)) == -1)
 			perror("error opening console");
 
 		if ((ioctl(term, VT_LOCKSWITCH)) == -1)
 			perror("error locking console");
+#else
+		cerr << APPNAME << ": tty_lock not supported on this platform" << endl;
+#endif
 	}
 
 	// Set up DPMS
@@ -250,9 +256,11 @@ int main(int argc, char **argv) {
 	close(lock_file);
 
 	if(cfg->getOption("tty_lock") == "1") {
+#ifdef VT_UNLOCKSWITCH
 		if ((ioctl(term, VT_UNLOCKSWITCH)) == -1) {
 			perror("error unlocking console");
 		}
+#endif
 	}
 	close(term);
 
@@ -349,9 +357,11 @@ void HandleSignal(int sig)
 			DPMSDisable(dpy);
 	}
 
+#ifdef VT_UNLOCKSWITCH
 	if ((ioctl(term, VT_UNLOCKSWITCH)) == -1) {
 		perror("error unlocking console");
 	}
+#endif
 	close(term);
 
 	loginPanel->ClosePanel();

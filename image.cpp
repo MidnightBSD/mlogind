@@ -24,15 +24,14 @@ using namespace std;
 
 #include "image.h"
 
+#ifdef USE_RSVG
+	#include <cairo/cairo.h>
+	#include <librsvg/rsvg.h>
+#endif
+
 extern "C" {
 	#include <jpeglib.h>
 	#include <png.h>
-#ifdef USE_RSVG
-	#include <cairo/cairo.h>
-	G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-	#include <librsvg/rsvg.h>
-	G_GNUC_END_IGNORE_DEPRECATIONS
-#endif
 }
 
 Image::Image() : width(0), height(0), area(0),

@@ -16,6 +16,10 @@ namespace Util {
 		const std::string &xauth_cmd, const std::string &authfile);
 
 	void run_command(const std::string &cmd);
+
+	long makeseed();
+	void srandom(long seed);
+	long random();
 }
 
 #endif /* _UTIL_H__ */

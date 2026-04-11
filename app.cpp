@@ -157,12 +157,10 @@ static void AddToEnv(char*** curr_env, const char *name, const char *value) {
 
 #ifdef USE_PAM
 App::App(int argc, char** argv)
-  : pam(conv, static_cast<void*>(&LoginPanel)),
+  : pam(conv, static_cast<void*>(&LoginPanel))
 #else
 App::App(int argc, char** argv)
-  :
 #endif
-	mcookiesize(32)		/* Must be divisible by 4 */
 {
 	int tmp;
 	ServerPID = -1;

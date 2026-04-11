@@ -113,7 +113,7 @@ private:
 	std::string themeName;
 	std::string mcookie;
 
-	const int mcookiesize;
+	static const int mcookiesize = 32;
 };
 
 #endif /* _APP_H_ */

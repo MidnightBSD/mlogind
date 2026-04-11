@@ -9,13 +9,29 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 #include <vector>
 
 #include "util.h"
+
+long Util::makeseed() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (long)(tv.tv_sec ^ tv.tv_usec ^ getpid());
+}
+
+void Util::srandom(long seed) {
+	::srandom((unsigned int)seed);
+}
+
+long Util::random() {
+	return ::random();
+}
 
 /*
  * Adds the given cookie to the specified Xauthority file.
