@@ -33,6 +33,19 @@ long Util::random() {
 	return ::random();
 }
 
+std::string Util::shell_escape(const std::string &s) {
+	std::string escaped = "'";
+	for (size_t i = 0; i < s.length(); ++i) {
+		if (s[i] == '\'') {
+			escaped += "'\\''";
+		} else {
+			escaped += s[i];
+		}
+	}
+	escaped += "'";
+	return escaped;
+}
+
 /*
  * Adds the given cookie to the specified Xauthority file.
  * Returns true on success, false on fault.

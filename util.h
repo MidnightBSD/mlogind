@@ -20,6 +20,8 @@ namespace Util {
 	long makeseed();
 	void srandom(long seed);
 	long random();
+
+	std::string shell_escape(const std::string &s);
 }
 
 #endif /* _UTIL_H__ */

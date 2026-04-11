@@ -677,11 +677,11 @@ void App::Login() {
 		SwitchUser Su(pw, cfg, DisplayName, child_env);
 		string session = LoginPanel->getSession();
 		string loginCommand = cfg->getOption("login_cmd");
-		replaceVariables(loginCommand, SESSION_VAR, session);
-		replaceVariables(loginCommand, THEME_VAR, themeName);
+		replaceVariables(loginCommand, SESSION_VAR, Util::shell_escape(session));
+		replaceVariables(loginCommand, THEME_VAR, Util::shell_escape(themeName));
 		string sessStart = cfg->getOption("sessionstart_cmd");
 		if (sessStart != "") {
-			replaceVariables(sessStart, USER_VAR, pw->pw_name);
+			replaceVariables(sessStart, USER_VAR, Util::shell_escape(pw->pw_name));
 			Util::run_command(sessStart);
 		}
 		Su.Login(loginCommand.c_str(), mcookie.c_str());
@@ -706,7 +706,7 @@ void App::Login() {
 	} else {
 		 string sessStop = cfg->getOption("sessionstop_cmd");
 		 if (sessStop != "") {
-			replaceVariables(sessStop, USER_VAR, pw->pw_name);
+			replaceVariables(sessStop, USER_VAR, Util::shell_escape(pw->pw_name));
 			Util::run_command(sessStop);
 		}
 	}
