@@ -677,8 +677,34 @@ void App::Login() {
 		SwitchUser Su(pw, cfg, DisplayName, child_env);
 		string session = LoginPanel->getSession();
 		string loginCommand = cfg->getOption("login_cmd");
+
 		replaceVariables(loginCommand, SESSION_VAR, Util::shell_escape(session));
 		replaceVariables(loginCommand, THEME_VAR, Util::shell_escape(themeName));
+
+		/* Wrap login command with dbus-launch to establish a DBus session bus.
+		 * This is required for desktop environments like XFCE 4.20 that use
+		 * DBus for settings persistence (xfconf). On non-systemd systems such
+		 * as MidnightBSD, dbus-launch is the standard way to start the session
+		 * bus and export DBUS_SESSION_BUS_ADDRESS to child processes. */
+		string dbusLaunch = cfg->getOption("dbus_launch");
+		if (dbusLaunch == "auto") {
+			dbusLaunch = "";
+			static const char* candidates[] = {
+				"/usr/local/bin/dbus-launch",
+				"/usr/bin/dbus-launch",
+				NULL
+			};
+			for (int i = 0; candidates[i] != NULL; i++) {
+				if (access(candidates[i], X_OK) == 0) {
+					dbusLaunch = candidates[i];
+					break;
+				}
+			}
+		}
+		if (!dbusLaunch.empty()) {
+			loginCommand = dbusLaunch + " --exit-with-session " + loginCommand;
+		}
+
 		string sessStart = cfg->getOption("sessionstart_cmd");
 		if (sessStart != "") {
 			replaceVariables(sessStart, USER_VAR, Util::shell_escape(pw->pw_name));
