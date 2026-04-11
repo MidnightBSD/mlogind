@@ -1197,6 +1197,7 @@ static bool WriteLockPid(int fd) {
  * Uses O_CREAT|O_EXCL for atomic creation to avoid TOCTOU races. */
 void App::GetLock() {
 	string lockpath = cfg->getOption("lockfile");
+	struct stat statbuf;
 
 	/* Attempt atomic creation */
 	int fd = open(lockpath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
@@ -1212,11 +1213,32 @@ void App::GetLock() {
 	}
 
 	if (errno != EEXIST) {
-		logStream << APPNAME << ": Could not create lock file: " << lockpath << std::endl;
+		logStream << APPNAME << ": Could not create lock file: " << lockpath << ": " << strerror(errno) << std::endl;
 		exit(ERR_EXIT);
 	}
 
-	/* Lock file exists — read the PID and check if the process is alive */
+	/* Lock file exists — check ownership and type before reading */
+	if (lstat(lockpath.c_str(), &statbuf) != 0) {
+		logStream << APPNAME << ": Could not stat existing lock file: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+
+	if (S_ISLNK(statbuf.st_mode)) {
+		logStream << APPNAME << ": Security error: lock file is a symbolic link: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+
+	if (statbuf.st_uid != 0) {
+		logStream << APPNAME << ": Security error: lock file is not owned by root: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+
+	if (!S_ISREG(statbuf.st_mode)) {
+		logStream << APPNAME << ": Security error: lock file is not a regular file: " << lockpath << std::endl;
+		exit(ERR_EXIT);
+	}
+
+	/* Read the PID and check if the process is alive */
 	int pid = 0;
 	std::ifstream existing(lockpath.c_str());
 	if (existing) {
@@ -1234,10 +1256,14 @@ void App::GetLock() {
 
 	/* Stale lock — remove and re-create atomically */
 	logStream << APPNAME << ": Stale lockfile found, removing it" << std::endl;
-	unlink(lockpath.c_str());
+	if (unlink(lockpath.c_str()) != 0) {
+		logStream << APPNAME << ": Could not remove stale lock file: " << lockpath << ": " << strerror(errno) << std::endl;
+		exit(ERR_EXIT);
+	}
+
 	fd = open(lockpath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd < 0) {
-		logStream << APPNAME << ": Could not create lock file: " << lockpath << std::endl;
+		logStream << APPNAME << ": Could not create lock file after removing stale one: " << lockpath << ": " << strerror(errno) << std::endl;
 		exit(ERR_EXIT);
 	}
 	if (!WriteLockPid(fd)) {

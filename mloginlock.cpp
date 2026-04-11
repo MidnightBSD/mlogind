@@ -86,17 +86,37 @@ int main(int argc, char **argv) {
 	prev_fn = signal(SIGTERM, HandleSignal);
 	if (prev_fn == SIG_IGN) signal(SIGTERM, SIG_IGN);
 
-	// create a lock file to solve mutliple instances problem
-	// /var/lock used to be the place to put this, now it's /run/lock
-	// ...i think
+	// create a lock file to solve multiple instances problem
 	struct stat statbuf;
 	int lock_file;
+	const char *lock_path;
 
-	// try /run/lock first, since i believe it's preferred
 	if (!stat("/run/lock", &statbuf))
-		lock_file = open("/run/lock/" APPNAME ".lock", O_CREAT | O_RDWR, 0644);
+		lock_path = "/run/lock/" APPNAME ".lock";
 	else
-		lock_file = open("/var/lock/" APPNAME ".lock", O_CREAT | O_RDWR, 0644);
+		lock_path = "/var/lock/" APPNAME ".lock";
+
+	// Attempt to create the lock file safely
+	lock_file = open(lock_path, O_CREAT | O_RDWR | O_EXCL, 0644);
+	if (lock_file < 0) {
+		if (errno == EEXIST) {
+			// File exists, check it
+			if (lstat(lock_path, &statbuf) != 0)
+				die(APPNAME ": could not stat existing lock file %s\n", lock_path);
+
+			if (S_ISLNK(statbuf.st_mode))
+				die(APPNAME ": security error: lock file %s is a symlink\n", lock_path);
+
+			if (statbuf.st_uid != 0 && statbuf.st_uid != getuid())
+				die(APPNAME ": security error: lock file %s has suspicious ownership\n", lock_path);
+
+			lock_file = open(lock_path, O_RDWR);
+			if (lock_file < 0)
+				die(APPNAME ": could not open existing lock file %s\n", lock_path);
+		} else {
+			die(APPNAME ": could not create lock file %s: %s\n", lock_path, strerror(errno));
+		}
+	}
 
 	int rc = flock(lock_file, LOCK_EX | LOCK_NB);
 
