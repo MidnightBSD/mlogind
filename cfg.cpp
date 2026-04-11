@@ -132,6 +132,16 @@ Cfg::Cfg()
 	options.insert(option("tty_lock", "1"));
 	options.insert(option("bell", "1"));
 
+	options.insert(option("show_clock","no"));
+	options.insert(option("clock_format","%H:%M:%S"));
+	options.insert(option("clock_font","Verdana:size=12"));
+	options.insert(option("clock_color","#FFFFFF"));
+	options.insert(option("clock_x","-1"));
+	options.insert(option("clock_y","-1"));
+	options.insert(option("clock_shadow_xoffset", "0"));
+	options.insert(option("clock_shadow_yoffset", "0"));
+	options.insert(option("clock_shadow_color","#FFFFFF"));
+
 	error = "";
 }
 

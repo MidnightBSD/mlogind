@@ -98,6 +98,7 @@ private:
 	bool OnKeyPress(XEvent& event);
 	void ShowText();
 	void ShowSession();
+	void ShowClock(XftDraw *draw = NULL);
 
 	void SlimDrawString8(XftDraw *d, XftColor *color, XftFont *font,
 							int x, int y, const std::string &str,
@@ -134,6 +135,22 @@ private:
 	XftFont *enterfont;
 	XftColor entercolor;
 	XftColor entershadowcolor;
+
+	/* Clock */
+	bool show_clock_enabled;
+	std::string clock_format;
+	std::string clock_x_str;
+	std::string clock_y_str;
+	int clock_shadow_xoffset;
+	int clock_shadow_yoffset;
+	XftFont *clockfont;
+	XftColor clockcolor;
+	XftColor clockshadowcolor;
+	Rectangle last_clock_rect;
+
+	Visual* visual;
+	Colormap colormap;
+
 	ActionType action;
 	FieldType field;
 	//Pixmap   background;
