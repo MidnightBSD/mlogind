@@ -224,20 +224,22 @@ string Cfg::getWelcomeMessage(){
 	int n = s.find("%host");
 	if (n >= 0) {
 		string tmp = s.substr(0, n);
-		char host[40];
-		gethostname(host, sizeof(host));
-		host[sizeof(host) - 1] = '\0';
-		tmp = tmp + host;
+		char host[256];
+		if (gethostname(host, sizeof(host)) == 0) {
+			host[sizeof(host) - 1] = '\0';
+			tmp = tmp + host;
+		}
 		tmp = tmp + s.substr(n+5, s.size() - n);
 		s = tmp;
 	}
 	n = s.find("%domain");
 	if (n >= 0) {
 		string tmp = s.substr(0, n);;
-		char domain[40];
-		getdomainname(domain, sizeof(domain));
-		domain[sizeof(domain) - 1] = '\0';
-		tmp = tmp + domain;
+		char domain[256];
+		if (getdomainname(domain, sizeof(domain)) == 0) {
+			domain[sizeof(domain) - 1] = '\0';
+			tmp = tmp + domain;
+		}
 		tmp = tmp + s.substr(n+7, s.size() - n);
 		s = tmp;
 	}

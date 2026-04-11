@@ -7,15 +7,17 @@ INSTALL file for mlogind
  - libpng
  - libjpeg
 
-1. to build and install the program:
- - edit the Makefile to adjust libraries and paths to your OS (if needed)
- - mkdir build ; cd build ; cmake ..
-     or
- - mkdir build ; cd build ; cmake .. -DUSE_PAM=yes to enable PAM support
-     or
- - mkdir build ; cd build ; cmake .. -DUSE_CONSOLEKIT=yes
-   to enable CONSOLEKIT support
- - make && make install
+1. To build and install the program:
+ - mkdir build ; cd build
+ - cmake .. [options]
+   Common options:
+   -DUSE_PAM=yes          Enable PAM support
+   -DUSE_CONSOLEKIT=yes   Enable CONSOLEKIT support
+   -DUSE_RSVG=yes         Enable SVG support via librsvg
+   -DBUILD_MLOGINLOCK=yes Build mloginlock (requires PAM)
+   -DBUILD_SHARED_LIBS=ON Build shared libraries (default: ON)
+ - cmake --build .
+ - sudo cmake --install .
  
 2. automatic startup
 Edit the init scripts according to your OS/Distribution.

@@ -9,13 +9,42 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 #include <vector>
 
 #include "util.h"
+
+long Util::makeseed() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (long)(tv.tv_sec ^ tv.tv_usec ^ getpid());
+}
+
+void Util::srandom(long seed) {
+	::srandom((unsigned int)seed);
+}
+
+long Util::random() {
+	return ::random();
+}
+
+std::string Util::shell_escape(const std::string &s) {
+	std::string escaped = "'";
+	for (size_t i = 0; i < s.length(); ++i) {
+		if (s[i] == '\'') {
+			escaped += "'\\''";
+		} else {
+			escaped += s[i];
+		}
+	}
+	escaped += "'";
+	return escaped;
+}
 
 /*
  * Adds the given cookie to the specified Xauthority file.
@@ -52,6 +81,14 @@ bool Util::add_mcookie(const std::string &mcookie, const char *display,
 		};
 		execv(xauth_cmd.c_str(), (char * const *)argv);
 		_exit(127);
+	}
+
+	/* Check for metacharacters in display name to prevent xauth injection */
+	static const char xauth_metachars[] = " \t\n\r|&;<>()$`\\\"'{[*?~!#";
+	if (std::string(display).find_first_of(xauth_metachars) != std::string::npos) {
+		close(pipefd[1]);
+		waitpid(pid, NULL, 0);
+		return false;
 	}
 
 	/* Parent: write xauth commands then close write end */
