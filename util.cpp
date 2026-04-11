@@ -70,6 +70,14 @@ bool Util::add_mcookie(const std::string &mcookie, const char *display,
 		_exit(127);
 	}
 
+	/* Check for metacharacters in display name to prevent xauth injection */
+	static const char xauth_metachars[] = " \t\n\r|&;<>()$`\\\"'{[*?~!#";
+	if (std::string(display).find_first_of(xauth_metachars) != std::string::npos) {
+		close(pipefd[1]);
+		waitpid(pid, NULL, 0);
+		return false;
+	}
+
 	/* Parent: write xauth commands then close write end */
 	close(pipefd[0]);
 	FILE *fp = fdopen(pipefd[1], "w");
