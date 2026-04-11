@@ -90,3 +90,14 @@ lockfile            /var/run/mlogind.pid
 # Log file
 logfile             /var/log/mlogind.log
 
+# Clock options
+# show_clock          no
+# clock_format        %H:%M:%S
+# clock_font          Verdana:size=12
+# clock_color         #FFFFFF
+# clock_x             -1
+# clock_y             -1
+# clock_shadow_xoffset 0
+# clock_shadow_yoffset 0
+# clock_shadow_color  #FFFFFF
+

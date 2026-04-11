@@ -79,6 +79,22 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 	XftColorAllocName(Dpy, visual, colormap,
 					  cfg->getOption("session_shadow_color").c_str(), &sessionshadowcolor);
 
+	/* Load clock config */
+	show_clock_enabled = cfg->getOption("show_clock") == "yes";
+	clock_format = cfg->getOption("clock_format");
+	clock_x_str = cfg->getOption("clock_x");
+	clock_y_str = cfg->getOption("clock_y");
+	clock_shadow_xoffset = cfg->getIntOption("clock_shadow_xoffset");
+	clock_shadow_yoffset = cfg->getIntOption("clock_shadow_yoffset");
+
+	if (show_clock_enabled) {
+		clockfont = XftFontOpenName(Dpy, Scr, cfg->getOption("clock_font").c_str());
+		XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_color").c_str(), &clockcolor);
+		XftColorAllocName(Dpy, visual, colormap, cfg->getOption("clock_shadow_color").c_str(), &clockshadowcolor);
+	} else {
+		clockfont = NULL;
+	}
+
 	/* Load properties from config / theme */
 	input_name_x = cfg->getIntOption("input_name_x");
 	input_name_y = cfg->getIntOption("input_name_y");
@@ -226,6 +242,12 @@ Panel::~Panel() {
 	XftColorFree(Dpy, visual, colormap, &introcolor);
 	XftColorFree(Dpy, visual, colormap, &sessioncolor);
 	XftColorFree(Dpy, visual, colormap, &sessionshadowcolor);
+
+	if (show_clock_enabled) {
+		XftColorFree(Dpy, visual, colormap, &clockcolor);
+		XftColorFree(Dpy, visual, colormap, &clockshadowcolor);
+		XftFontClose(Dpy, clockfont);
+	}
 
 	XFreeGC(Dpy, TextGC);
 	XftFontClose(Dpy, font);
@@ -454,7 +476,7 @@ void Panel::EventHandler(const Panel::FieldType& curfield) {
 	x11_pfd.events = POLLIN;
 
 	while (loop) {
-		if (XPending(Dpy) || poll(&x11_pfd, 1, -1) > 0) {
+		if (XPending(Dpy) || poll(&x11_pfd, 1, 1000) > 0) {
 			while(XPending(Dpy)) {
 				XNextEvent(Dpy, &event);
 				switch(event.type) {
@@ -467,6 +489,9 @@ void Panel::EventHandler(const Panel::FieldType& curfield) {
 						break;
 				}
 			}
+		} else {
+			/* Timeout */
+			ShowClock();
 		}
 	}
 
@@ -511,6 +536,7 @@ void Panel::OnExpose(void) {
 	}
 
 	XftDrawDestroy (draw);
+	ShowClock();
 	Cursor(SHOW);
 	ShowText();
 }
@@ -799,6 +825,56 @@ void Panel::ShowSession() {
 					shadowXOffset, shadowYOffset);
 	XFlush(Dpy);
 	XftDrawDestroy(draw);
+}
+
+void Panel::ShowClock(XftDraw *draw) {
+	if (!show_clock_enabled) return;
+
+	time_t rawtime;
+	struct tm *timeinfo;
+	char buffer[256];
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+	strftime(buffer, sizeof(buffer), clock_format.c_str(), timeinfo);
+	string clock_str(buffer);
+
+	bool local_draw = false;
+	if (!draw) {
+		draw = XftDrawCreate(Dpy, Win, DefaultVisual(Dpy, Scr), DefaultColormap(Dpy, Scr));
+		local_draw = true;
+	}
+
+	XGlyphInfo extents;
+	XftTextExtents8(Dpy, clockfont, reinterpret_cast<const XftChar8*>(clock_str.c_str()),
+					clock_str.length(), &extents);
+
+	int x, y;
+	if (clock_x_str == "-1") {
+		x = (image->Width() - extents.width) / 2;
+	} else {
+		x = Cfg::absolutepos(clock_x_str, image->Width(), extents.width);
+	}
+
+	if (clock_y_str == "-1") {
+		y = (image->Height() - extents.height) / 2;
+	} else {
+		y = Cfg::absolutepos(clock_y_str, image->Height(), extents.height);
+	}
+
+	// In DM mode, we need to clear the area first if it's not a temporary draw
+	// But since we draw on Win which is the panel window, we can just redraw.
+	// Actually, redrawing over the same spot might cause artifacts if the text changes length.
+	// For now, let's just draw.
+	
+	SlimDrawString8(draw, &clockcolor, clockfont, x, y,
+					clock_str,
+					&clockshadowcolor,
+					clock_shadow_xoffset, clock_shadow_yoffset);
+
+	if (local_draw) {
+		XftDrawDestroy(draw);
+	}
 }
 
 
