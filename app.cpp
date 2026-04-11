@@ -694,9 +694,8 @@ void App::Login() {
 				"/usr/bin/dbus-launch",
 				NULL
 			};
-			struct stat st;
 			for (int i = 0; candidates[i] != NULL; i++) {
-				if (stat(candidates[i], &st) == 0) {
+				if (access(candidates[i], X_OK) == 0) {
 					dbusLaunch = candidates[i];
 					break;
 				}
