@@ -56,6 +56,7 @@ Cfg::Cfg()
 	options.insert(option("reboot_msg","The system is rebooting..."));
 	options.insert(option("sessiondir",""));
 	options.insert(option("hidecursor","false"));
+	options.insert(option("dbus_launch",""));
 
 	/* Theme stuff */
 	options.insert(option("input_panel_x","50%"));
