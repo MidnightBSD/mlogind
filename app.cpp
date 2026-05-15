@@ -19,7 +19,6 @@
 #include <cstring>
 #include <cstdio>
 #include <iostream>
-#include <fstream>
 #include <sstream>
 #include <vector>
 #include <algorithm>
@@ -1311,34 +1310,43 @@ void App::GetLock() {
 		exit(ERR_EXIT);
 	}
 
-	/* Lock file exists — check ownership and type before reading */
-	if (lstat(lockpath.c_str(), &statbuf) != 0) {
-		logStream << APPNAME << ": Could not stat existing lock file: " << lockpath << std::endl;
+	/* Open with O_NOFOLLOW so symlinks are rejected atomically.
+	 * fstat() on the open fd then checks type and ownership without
+	 * a separate lstat() race. */
+	int rfd = open(lockpath.c_str(), O_RDONLY | O_NOFOLLOW);
+	if (rfd < 0) {
+		if (errno == ELOOP)
+			logStream << APPNAME << ": Security error: lock file is a symbolic link: " << lockpath << std::endl;
+		else
+			logStream << APPNAME << ": Could not open existing lock file: " << lockpath << ": " << strerror(errno) << std::endl;
 		exit(ERR_EXIT);
 	}
 
-	if (S_ISLNK(statbuf.st_mode)) {
-		logStream << APPNAME << ": Security error: lock file is a symbolic link: " << lockpath << std::endl;
+	if (fstat(rfd, &statbuf) != 0) {
+		logStream << APPNAME << ": Could not stat existing lock file: " << lockpath << std::endl;
+		close(rfd);
 		exit(ERR_EXIT);
 	}
 
 	if (statbuf.st_uid != 0) {
 		logStream << APPNAME << ": Security error: lock file is not owned by root: " << lockpath << std::endl;
+		close(rfd);
 		exit(ERR_EXIT);
 	}
 
 	if (!S_ISREG(statbuf.st_mode)) {
 		logStream << APPNAME << ": Security error: lock file is not a regular file: " << lockpath << std::endl;
+		close(rfd);
 		exit(ERR_EXIT);
 	}
 
 	/* Read the PID and check if the process is alive */
 	int pid = 0;
-	std::ifstream existing(lockpath.c_str());
-	if (existing) {
-		existing >> pid;
-		existing.close();
-	}
+	char pidbuf[32] = {};
+	ssize_t nr = read(rfd, pidbuf, sizeof(pidbuf) - 1);
+	close(rfd);
+	if (nr > 0)
+		sscanf(pidbuf, "%d", &pid);
 
 	if (pid > 0) {
 		int ret = kill(pid, 0);
@@ -1475,11 +1483,16 @@ char* App::StrConcat(const char* str1, const char* str2) {
 }
 
 void App::UpdatePid() {
-	std::ofstream lockfile(cfg->getOption("lockfile").c_str(), ios_base::out);
-	if (!lockfile) {
-		logStream << APPNAME << ": Could not update lock file: " << cfg->getOption("lockfile").c_str() << std::endl;
+	string lockpath = cfg->getOption("lockfile");
+	int fd = open(lockpath.c_str(), O_WRONLY | O_NOFOLLOW | O_TRUNC);
+	if (fd < 0) {
+		logStream << APPNAME << ": Could not update lock file: " << lockpath << ": " << strerror(errno) << std::endl;
 		exit(ERR_EXIT);
 	}
-	lockfile << getpid() << std::endl;
-	lockfile.close();
+	if (!WriteLockPid(fd)) {
+		logStream << APPNAME << ": Failed to write PID to lock file: " << lockpath << std::endl;
+		close(fd);
+		exit(ERR_EXIT);
+	}
+	close(fd);
 }
