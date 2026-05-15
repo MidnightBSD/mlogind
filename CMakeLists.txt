@@ -54,9 +54,21 @@ set(MLOGIND_DEFINITIONS ${MLOGIND_DEFINITIONS} "-DPKGDATADIR=\"${PKGDATADIR}\"")
 set(MLOGIND_DEFINITIONS ${MLOGIND_DEFINITIONS} "-DSYSCONFDIR=\"${SYSCONFDIR}\"")
 
 # Flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O2 -fstack-protector --param=ssp-buffer-size=4 -Wformat -Wformat-security -Werror=format-security")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O2")
 set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -Wall -g -O2")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O2")
+
+# Hardening flags — GCC and Clang only (primary target: Clang 19+ on MidnightBSD)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    set(MLOGIND_HARDENING_FLAGS
+        -fstack-protector-strong
+        -D_FORTIFY_SOURCE=2
+        -Wformat
+        -Wformat-security
+        -Werror=format-security
+    )
+    add_compile_options(${MLOGIND_HARDENING_FLAGS})
+endif()
 
 # source 
 set(mlogind_srcs
