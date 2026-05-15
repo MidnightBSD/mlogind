@@ -38,13 +38,13 @@ Image::Image() : width(0), height(0), area(0),
 rgb_data(NULL), png_alpha(NULL), quality_(80) {}
 
 Image::Image(const int w, const int h, const unsigned char *rgb, const unsigned char *alpha) :
-width(w), height(h), area(w*h), quality_(80) {
-	width = w;
-	height = h;
-	area = w * h;
-
+width(w), height(h), area(w*h),
+rgb_data(NULL), png_alpha(NULL), quality_(80) {
 	rgb_data = (unsigned char *) malloc(3 * area);
 	if (!rgb_data) {
+		width = 0;
+		height = 0;
+		area = 0;
 		return;
 	}
 	memcpy(rgb_data, rgb, 3 * area);
