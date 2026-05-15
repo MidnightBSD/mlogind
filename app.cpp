@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <login_cap.h>
+#include <cerrno>
 #include <cstring>
 #include <cstdio>
 #include <iostream>
@@ -723,8 +724,22 @@ void App::Login() {
 	int status;
 	while (wpid != pid) {
 		wpid = wait(&status);
-		if (wpid == ServerPID)
-			xioerror(Dpy);	/* Server died, simulate IO error */
+		if (wpid == -1) {
+			if (errno == EINTR)
+				continue;
+			break;
+		}
+		if (wpid == ServerPID) {
+			/* Server died before session exited: terminate the session and
+			 * continue to the normal session cleanup path below. */
+			killpg(pid, SIGHUP);
+			if (killpg(pid, SIGTERM) < 0 && errno == ESRCH)
+				continue; /* Session process group already gone */
+			/* Give session a grace period to exit cleanly before forcing it */
+			sleep(3);
+			if (killpg(pid, SIGKILL) < 0 && errno != ESRCH)
+				logStream << APPNAME << ": killpg SIGKILL failed: " << strerror(errno) << endl;
+		}
 	}
 	if (WIFEXITED(status) && WEXITSTATUS(status)) {
 		LoginPanel->Message("Failed to execute login command");
