@@ -170,19 +170,10 @@ private:
 	int input_pass_y;
 	int inputShadowXOffset;
 	int inputShadowYOffset;
-	int input_cursor_height;
 	int welcome_x;
 	int welcome_y;
-	int welcome_shadow_xoffset;
-	int welcome_shadow_yoffset;
-	int session_shadow_xoffset;
-	int session_shadow_yoffset;
-	int intro_x;
-	int intro_y;
 	int username_x;
 	int username_y;
-	int username_shadow_xoffset;
-	int username_shadow_yoffset;
 	int password_x;
 	int password_y;
 	std::string welcome_message;
@@ -193,8 +184,6 @@ private:
 
 	Image *image;
 
-	/* For thesting themes */
-	bool testing;
 	std::string themedir;
 
 	/* Session handling */

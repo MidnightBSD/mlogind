@@ -89,12 +89,13 @@ namespace Ck {
 	if(bytes_left != 0)
 	  throw Exception(__func__, "invalid bytes left");
 
+	if(!return_value)
+	  throw Exception(__func__, "null return value from XGetWindowProperty");
+
 	vt = *((long *)return_value);
+	XFree(return_value);
 
 	snprintf(device, sizeof(device), "/dev/ttyv%ld", vt - 1);
-
-	if(return_value)
-	  XFree(return_value);
 
 	return device;
   }
@@ -132,6 +133,7 @@ namespace Ck {
   }
 
   Session::Session()
+    : ckc(nullptr)
   {
 	dbus_error_init(&error);
   }

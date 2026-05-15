@@ -165,13 +165,19 @@ App::App(int argc, char** argv)
 {
 	int tmp;
 	ServerPID = -1;
+	Scr = 0;
+	LoginPanel = nullptr;
+	DisplayName = nullptr;
+	DispName = nullptr;
+	cfg = nullptr;
+	image = nullptr;
 	testing = false;
 	serverStarted = false;
 	mcookie = string(App::mcookiesize, 'a');
 	daemonmode = false;
 	force_nodaemon = false;
 	firstlogin = true;
-	Dpy = NULL;
+	Dpy = nullptr;
 
 	/* Parse command line
 	   Note: we force a option for nodaemon switch to handle "-nodaemon" */
