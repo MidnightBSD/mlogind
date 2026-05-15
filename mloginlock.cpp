@@ -334,7 +334,10 @@ static int ConvCallback(int num_msgs, const struct pam_message **msg,
 
 bool AuthenticateUser()
 {
-	return(pam_authenticate(pam_handle, 0) == PAM_SUCCESS);
+	if (pam_authenticate(pam_handle, 0) != PAM_SUCCESS)
+		return false;
+
+	return (pam_acct_mgmt(pam_handle, 0) == PAM_SUCCESS);
 }
 
 string findValidRandomTheme(const string& set)
