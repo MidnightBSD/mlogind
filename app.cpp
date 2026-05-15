@@ -350,17 +350,12 @@ void App::Run() {
 	LoginPanel = new Panel(Dpy, Scr, Root, cfg, themedir, Panel::Mode_DM);
 	bool firstloop = true; /* 1st time panel is shown (for automatic username) */
 	bool focuspass = cfg->getOption("focus_password")=="yes";
-	bool autologin = cfg->getOption("auto_login")=="yes";
-
 	if (firstlogin && cfg->getOption("default_user") != "") {
 		LoginPanel->SetName(cfg->getOption("default_user") );
 #ifdef USE_PAM
 	pam.set_item(PAM::Authenticator::User, cfg->getOption("default_user").c_str());
 #endif
 		firstlogin = false;
-		if (autologin) {
-			Login();
-		}
 	}
 
 	/* Set NumLock */

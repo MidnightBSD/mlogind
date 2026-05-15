@@ -84,8 +84,8 @@ reboot_msg         The system is rebooting...
 # Set to "yes" to enable this feature
 #focus_password      no
 
-# Automatically login the default user (without entering
-# the password. Set to "yes" to enable this feature
+# Automatically login is disabled for security reasons.
+# Keep this set to "no".
 #auto_login          no
 
 
