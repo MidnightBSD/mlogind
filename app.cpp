@@ -771,7 +771,6 @@ void App::Login() {
 #ifndef XNEST_DEBUG
 	/* Re-activate log file */
 	OpenLog();
-	RestartServer();
 #endif
 
 }
