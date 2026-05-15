@@ -21,3 +21,5 @@ LogUnit::closeLog()
 	if (logFile.is_open())
 		logFile.close();
 }
+
+LogUnit logStream;
