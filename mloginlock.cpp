@@ -292,13 +292,15 @@ int main(int argc, char **argv) {
 	close(lock_file);
 
 	if(cfg->getOption("tty_lock") == "1") {
+#ifdef VT_LOCKSWITCH
 #ifdef VT_UNLOCKSWITCH
 		if ((ioctl(term, VT_UNLOCKSWITCH)) == -1) {
 			perror("error unlocking console");
 		}
 #endif
+		close(term);
+#endif
 	}
-	close(term);
 
 	return 0;
 }
