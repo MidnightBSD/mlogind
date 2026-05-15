@@ -1017,8 +1017,9 @@ Rectangle Panel::GetPrimaryViewport() {
         if (primary_info->ncrtc > 0) {
            crtc = primary_info->crtcs[0];
         } else {
-            cerr << "Cannot get crtc from xrandr.\n";
-            exit(EXIT_FAILURE);
+            XRRFreeOutputInfo(primary_info);
+            XRRFreeScreenResources(resources);
+            return fallback;
         }
     } else {
         crtc = primary_info->crtc;
