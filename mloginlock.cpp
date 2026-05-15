@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
 		if ((ioctl(term, VT_LOCKSWITCH)) == -1)
 			perror("error locking console");
 #else
-		cerr << APPNAME << ": tty_lock not supported on this platform" << endl;
+		die(APPNAME ": tty_lock=1 is not supported on this platform\n");
 #endif
 	}
 
