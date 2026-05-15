@@ -420,6 +420,7 @@ void App::Run() {
 		switch(Action) {
 			case Panel::Login:
 				Login();
+				firstloop = true;
 				break;
 			case Panel::Console:
 				Console();
@@ -753,6 +754,12 @@ void App::Login() {
 	catch(PAM::Exception& e){
 		logStream << APPNAME << ": " << e << endl;
 	};
+	try{
+		pam.end();
+	}
+	catch(PAM::Exception& e){
+		logStream << APPNAME << ": " << e << endl;
+	};
 #endif
 
 /* Close all clients */
@@ -771,6 +778,9 @@ void App::Login() {
 #ifndef XNEST_DEBUG
 	/* Re-activate log file */
 	OpenLog();
+	/* Regenerate auth cookie so the previous session's credentials cannot
+	 * be reused to connect to the X server for the next session. */
+	CreateServerAuth();
 #endif
 
 }
