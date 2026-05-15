@@ -427,6 +427,32 @@ void App::Run() {
 		switch(Action) {
 			case Panel::Login:
 				Login();
+#ifndef XNEST_DEBUG
+				/* Restart the X server between sessions to force auth cookie
+				 * rotation. This prevents a logged-out user from reconnecting
+				 * to the running display using their old ~/.Xauthority. */
+				delete LoginPanel;
+				LoginPanel = nullptr;
+				StopServer();
+				Dpy = nullptr;
+				while (waitpid(-1, NULL, WNOHANG) > 0);
+				signal(SIGQUIT, CatchSignal);
+				signal(SIGTERM, CatchSignal);
+				signal(SIGINT, CatchSignal);
+				signal(SIGHUP, CatchSignal);
+				signal(SIGPIPE, CatchSignal);
+				signal(SIGUSR1, User1Signal);
+				CreateServerAuth();
+				StartServer();
+				Scr = DefaultScreen(Dpy);
+				Root = RootWindow(Dpy, Scr);
+				BackgroundPixmapId = XInternAtom(Dpy, "_XROOTPMAP_ID", False);
+				blankScreen();
+				HideCursor();
+				LoginPanel = new Panel(Dpy, Scr, Root, cfg, themedir, Panel::Mode_DM);
+				if (numlock == "on") NumLock::setOn(Dpy);
+				else if (numlock == "off") NumLock::setOff(Dpy);
+#endif
 #ifdef USE_PAM
 				try{
 					pam.start("mlogind");
@@ -814,9 +840,6 @@ void App::Login() {
 #ifndef XNEST_DEBUG
 	/* Re-activate log file */
 	OpenLog();
-	/* Regenerate auth cookie so the previous session's credentials cannot
-	 * be reused to connect to the X server for the next session. */
-	CreateServerAuth();
 #endif
 
 }
