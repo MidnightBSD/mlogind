@@ -128,7 +128,7 @@ void Util::run_command(const std::string &cmd) {
 	pid_t pid = fork();
 	if (pid == 0) {
 		if (needs_shell) {
-			execl("/bin/sh", "sh", "-c", cmd.c_str(), (char *)NULL);
+			execl("/bin/sh", "sh", "-c", cmd.c_str(), static_cast<char*>(nullptr));
 		} else {
 			/* tokenize on whitespace and exec directly, no shell involved */
 			std::vector<std::string> args;

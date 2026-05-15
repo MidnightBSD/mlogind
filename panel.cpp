@@ -137,7 +137,7 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 		if (!loaded) {
 			logStream << APPNAME
 				 << ": could not load panel image for theme '"
-				 << basename((char*)themedir.c_str()) << "'"
+				 << basename(const_cast<char*>(themedir.c_str())) << "'"
 				 << endl;
 			exit(ERR_EXIT);
 		}
@@ -154,7 +154,7 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 			if (!loaded){
 				logStream << APPNAME
 					 << ": could not load background image for theme '"
-					 << basename((char*)themedir.c_str()) << "'"
+					 << basename(const_cast<char*>(themedir.c_str())) << "'"
 					 << endl;
 				exit(ERR_EXIT);
 			}
@@ -451,10 +451,10 @@ void Panel::Cursor(int visible) {
 	}
 
 	XGlyphInfo extents;
-	XftTextExtents8(Dpy, font, (XftChar8*)txth, strlen(txth), &extents);
+	XftTextExtents8(Dpy, font, reinterpret_cast<const XftChar8*>(txth), strlen(txth), &extents);
 	cheight = extents.height;
 	y2 = yy - extents.y + extents.height;
-	XftTextExtents8(Dpy, font, (XftChar8*)text, strlen(text), &extents);
+	XftTextExtents8(Dpy, font, reinterpret_cast<const XftChar8*>(text), strlen(text), &extents);
 	xx += extents.width;
 
 	if(visible == SHOW) {
@@ -740,7 +740,7 @@ void Panel::ShowText(){
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
 		  visual, colormap);
 	/* welcome message */
-	XftTextExtents8(Dpy, welcomefont, (XftChar8*)welcome_message.c_str(),
+	XftTextExtents8(Dpy, welcomefont, reinterpret_cast<const XftChar8*>(welcome_message.c_str()),
 					strlen(welcome_message.c_str()), &extents);
 	cfgX = cfg->getOption("welcome_x");
 	cfgY = cfg->getOption("welcome_y");
@@ -760,7 +760,7 @@ void Panel::ShowText(){
 	string msg;
 	if ((!singleInputMode|| field == Get_Passwd) && mode == Mode_DM) {
 		msg = cfg->getOption("password_msg");
-		XftTextExtents8(Dpy, enterfont, (XftChar8*)msg.c_str(),
+		XftTextExtents8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
 						strlen(msg.c_str()), &extents);
 		cfgX = cfg->getOption("password_x");
 		cfgY = cfg->getOption("password_y");
@@ -776,7 +776,7 @@ void Panel::ShowText(){
 
 	if (!singleInputMode|| field == Get_Name) {
 		msg = cfg->getOption("username_msg");
-		XftTextExtents8(Dpy, enterfont, (XftChar8*)msg.c_str(),
+		XftTextExtents8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
 						strlen(msg.c_str()), &extents);
 		cfgX = cfg->getOption("username_x");
 		cfgY = cfg->getOption("username_y");

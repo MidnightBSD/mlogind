@@ -40,7 +40,7 @@ rgb_data(NULL), png_alpha(NULL), quality_(80) {}
 Image::Image(const int w, const int h, const unsigned char *rgb, const unsigned char *alpha) :
 width(w), height(h), area(w*h),
 rgb_data(NULL), png_alpha(NULL), quality_(80) {
-	rgb_data = (unsigned char *) malloc(3 * area);
+	rgb_data = static_cast<unsigned char*>(malloc(3 * area));
 	if (!rgb_data) {
 		width = 0;
 		height = 0;
@@ -52,7 +52,7 @@ rgb_data(NULL), png_alpha(NULL), quality_(80) {
 	if (alpha == NULL) {
 		png_alpha = NULL;
 	} else {
-		png_alpha = (unsigned char *) malloc(area);
+		png_alpha = static_cast<unsigned char*>(malloc(area));
 		if (!png_alpha) {
 			return;
 		}
@@ -68,7 +68,7 @@ Image::~Image() {
 bool
 Image::Read(const char *filename) {
 	char buf[4];
-	unsigned char *ubuf = (unsigned char *) buf;
+	unsigned char *ubuf = reinterpret_cast<unsigned char*>(buf);
 	int success = 0;
 
 	FILE *file;
@@ -120,7 +120,7 @@ Image::Reduce(const int factor) {
 	int h = height / scale;
 	int new_area = w * h;
 
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * new_area);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * new_area));
 	if (new_rgb == NULL)
 		return;
 
@@ -128,7 +128,7 @@ Image::Reduce(const int factor) {
 
 	unsigned char *new_alpha = NULL;
 	if (png_alpha != NULL) {
-		new_alpha = (unsigned char *) malloc(new_area);
+		new_alpha = static_cast<unsigned char*>(malloc(new_area));
 		if (new_alpha == NULL) {
 			free(new_rgb);
 			return;
@@ -170,10 +170,10 @@ Image::Resize(const int w, const int h) {
 
 	int new_area = w * h;
 
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * new_area);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * new_area));
 	unsigned char *new_alpha = NULL;
 	if (png_alpha != NULL)
-		new_alpha = (unsigned char *) malloc(new_area);
+		new_alpha = static_cast<unsigned char*>(malloc(new_area));
 
 	const double scale_x = ((double) w) / width;
 	const double scale_y = ((double) h) / height;
@@ -283,7 +283,7 @@ void Image::Merge(Image* background, const int x, const int y) {
 		background->Crop(x, y, width, height);
 
 	double tmp;
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * width * height);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * width * height));
 	memset(new_rgb, 0, 3 * width * height);
 	const unsigned char *bg_rgb = background->getRGBData();
 
@@ -333,7 +333,7 @@ void Image::Merge_non_crop(Image* background, const int x, const int y)
 		return;
 
 	double tmp;
-	unsigned char *new_rgb = (unsigned char *)malloc(3 * bg_w * bg_h);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * bg_w * bg_h));
 	const unsigned char *bg_rgb = background->getRGBData();
 	int pnl_pos = 0;
 	int bg_pos = 0;
@@ -391,7 +391,7 @@ void Image::Tile(const int w, const int h) {
 	int newwidth = nx*width;
 	int newheight=ny*height;
 
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * newwidth * newheight);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * newwidth * newheight));
 	memset(new_rgb, 0, 3 * width * height * nx * ny);
 
 	int ipos = 0;
@@ -432,11 +432,11 @@ void Image::Crop(const int x, const int y, const int w, const int h) {
 
 	int x2 = x + w;
 	int y2 = y + h;
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * w * h);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
 	memset(new_rgb, 0, 3 * w * h);
 	unsigned char *new_alpha = NULL;
 	if (png_alpha != NULL) {
-		new_alpha = (unsigned char *) malloc(w * h);
+		new_alpha = static_cast<unsigned char*>(malloc(w * h));
 		memset(new_alpha, 0, w * h);
 	}
 
@@ -482,7 +482,7 @@ void Image::Center(const int w, const int h, const char *hex) {
 	unsigned long g = packed_rgb>>8 & 0xff;
 	unsigned long b = packed_rgb & 0xff;
 
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * w * h);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
 	memset(new_rgb, 0, 3 * w * h);
 
 	int x = (w - width) / 2;
@@ -562,7 +562,7 @@ void Image::Plain(const int w, const int h, const char *hex) {
 	unsigned long g = packed_rgb>>8 & 0xff;
 	unsigned long b = packed_rgb & 0xff;
 
-	unsigned char *new_rgb = (unsigned char *) malloc(3 * w * h);
+	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
 	memset(new_rgb, 0, 3 * w * h);
 
 	area = w * h;
@@ -779,8 +779,8 @@ Image::readJpeg(const char *filename, int *width, int *height,
 	*width = cinfo.output_width;
 	*height = cinfo.output_height;
 
-	rgb[0] = (unsigned char*)
-				malloc(3 * cinfo.output_width * cinfo.output_height);
+	rgb[0] = static_cast<unsigned char*>(
+				malloc(3 * cinfo.output_width * cinfo.output_height));
 	if (rgb[0] == NULL) {
 		logStream << APPNAME << ": Can't allocate memory for JPEG file."
 				  << endl;
@@ -794,7 +794,7 @@ Image::readJpeg(const char *filename, int *width, int *height,
 			ptr += 3 * cinfo.output_width;
 		}
 	} else if (cinfo.output_components == 1) {
-		ptr = (unsigned char*) malloc(cinfo.output_width);
+		ptr = static_cast<unsigned char*>(malloc(cinfo.output_width));
 		if (ptr == NULL) {
 			logStream << APPNAME << ": Can't allocate memory for JPEG file."
 					  << endl;
@@ -876,7 +876,7 @@ Image::readPng(const char *filename, int *width, int *height,
 	png_read_info(png_ptr, info_ptr);
 
 	png_get_IHDR(png_ptr, info_ptr, &w, &h, &bit_depth, &color_type,
-				 &interlace_type, (int *) NULL, (int *) NULL);
+				 &interlace_type, nullptr, nullptr);
 
 	/* Prevent against integer overflow */
 	if(w >= MAX_DIMENSION || h >= MAX_DIMENSION) {
@@ -891,7 +891,7 @@ Image::readPng(const char *filename, int *width, int *height,
 	if (color_type == PNG_COLOR_TYPE_RGB_ALPHA
 		|| color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
 	{
-		alpha[0] = (unsigned char *) malloc(*width * *height);
+		alpha[0] = static_cast<unsigned char*>(malloc(*width * *height));
 		if (alpha[0] == NULL) {
 			logStream << APPNAME
 					<< ": Can't allocate memory for alpha channel in PNG file."
@@ -921,14 +921,14 @@ Image::readPng(const char *filename, int *width, int *height,
 	/* use 1 byte per pixel */
 	png_set_packing(png_ptr);
 
-	row_pointers = (png_byte **) malloc(*height * sizeof(png_bytep));
+	row_pointers = static_cast<png_byte**>(malloc(*height * sizeof(png_bytep)));
 	if (row_pointers == NULL) {
 		logStream << APPNAME << ": Can't allocate memory for PNG file." << endl;
 		goto png_destroy;
 	}
 
 	for (i = 0; i < *height; i++) {
-		row_pointers[i] = (png_byte*) malloc(4 * *width);
+		row_pointers[i] = static_cast<png_byte*>(malloc(4 * *width));
 		if (row_pointers == NULL) {
 			logStream << APPNAME << ": Can't allocate memory for PNG file."
 					  << endl;
@@ -938,7 +938,7 @@ Image::readPng(const char *filename, int *width, int *height,
 
 	png_read_image(png_ptr, row_pointers);
 
-	rgb[0] = (unsigned char *) malloc(3 * (*width) * (*height));
+	rgb[0] = static_cast<unsigned char*>(malloc(3 * (*width) * (*height)));
 	if (rgb[0] == NULL) {
 		logStream << APPNAME << ": Can't allocate memory for PNG file." << endl;
 		goto rows_free;
@@ -1058,13 +1058,13 @@ Image::readSvg(const char *filename, int *w, int *h,
     *w = svg_w;
     *h = svg_h;
 
-    *rgb = (unsigned char *)malloc(3 * svg_w * svg_h);
+    *rgb = static_cast<unsigned char*>(malloc(3 * svg_w * svg_h));
     if (!*rgb) {
         cairo_surface_destroy(surface);
         return 0;
     }
 
-    *alpha = (unsigned char *)malloc(svg_w * svg_h);
+    *alpha = static_cast<unsigned char*>(malloc(svg_w * svg_h));
     if (!*alpha) {
         free(*rgb);
         *rgb = NULL;

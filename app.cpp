@@ -53,7 +53,7 @@ static const char* LOGIN_CAP_ENVS[] = {
 
 int conv(int num_msg, const struct pam_message **msg,
 		 struct pam_response **resp, void *appdata_ptr){
-	*resp = (struct pam_response *) calloc(num_msg, sizeof(struct pam_response));
+	*resp = static_cast<pam_response*>(calloc(num_msg, sizeof(pam_response)));
 	Panel* panel = *static_cast<Panel**>(appdata_ptr);
 	int result = PAM_SUCCESS;
 	for (int i=0; i<num_msg; i++){
@@ -832,7 +832,7 @@ void App::Reboot() {
 #endif
 
 	/* Write message */
-	LoginPanel->Message((char*)cfg->getOption("reboot_msg").c_str());
+	LoginPanel->Message(cfg->getOption("reboot_msg"));
 	sleep(3);
 
 	/* Stop server and reboot */
@@ -854,7 +854,7 @@ void App::Halt() {
 #endif
 
 	/* Write message */
-	LoginPanel->Message((char*)cfg->getOption("shutdown_msg").c_str());
+	LoginPanel->Message(cfg->getOption("shutdown_msg"));
 	sleep(3);
 
 	/* Stop server and halt */
@@ -996,17 +996,17 @@ void App::KillAllClients(Bool top) {
 		if(children[i])
 			XKillClient(Dpy, children[i]);
 	}
-	XFree((char *)children);
+	XFree(children);
 
 	XSync(Dpy, 0);
 	XSetErrorHandler(NULL);
 }
 
 
-int App::ServerTimeout(int timeout, char* text) {
+int App::ServerTimeout(int timeout, const char* text) {
 	int	i = 0;
 	int pidfound = -1;
-	static char	*lasttext;
+	static const char *lasttext;
 
 	for(;;) {
 		pidfound = waitpid(ServerPID, NULL, WNOHANG);
@@ -1041,7 +1041,7 @@ int App::WaitForServer() {
 			XSetIOErrorHandler(xioerror);
 			return 1;
 		} else {
-			if(!ServerTimeout(1, (char *) "X server to begin accepting connections"))
+			if(!ServerTimeout(1, "X server to begin accepting connections"))
 				break;
 		}
 	}
@@ -1057,7 +1057,7 @@ int App::StartServer() {
 
 	static const int MAX_XSERVER_ARGS = 256;
 	static char* server[MAX_XSERVER_ARGS+2] = { NULL };
-	server[0] = (char *)cfg->getOption("default_xserver").c_str();
+	server[0] = const_cast<char*>(cfg->getOption("default_xserver").c_str());
 	string argOption = cfg->getOption("xserver_arguments");
 	/* Add mandatory -xauth option */
 	argOption = argOption + " -auth " + cfg->getOption("authfile");
@@ -1098,7 +1098,7 @@ int App::StartServer() {
 	}
 
 	if (!hasVtSet && daemonmode) {
-		server[argc++] = (char*)"vt09";
+		server[argc++] = const_cast<char*>("vt09");
 	}
 	server[argc] = NULL;
 
@@ -1119,7 +1119,7 @@ int App::StartServer() {
 
 	default:
 		errno = 0;
-		if(!ServerTimeout(0, (char *)"")) {
+		if(!ServerTimeout(0, "")) {
 			ServerPID = -1;
 			break;
 		}
@@ -1179,7 +1179,7 @@ void App::StopServer() {
 	}
 
 	/* Wait for server to shut down */
-	if(!ServerTimeout(10, (char *)"X server to shut down")) {
+	if(!ServerTimeout(10, "X server to shut down")) {
 		logStream << endl;
 		return;
 	}
@@ -1194,7 +1194,7 @@ void App::StopServer() {
 	}
 
 	/* Wait for server to die */
-	if(ServerTimeout(3, (char*)"server to die")) {
+	if(ServerTimeout(3, "server to die")) {
 		logStream << endl << APPNAME << ": can't kill server" << endl;
 		exit(ERR_EXIT);
 	}
@@ -1246,7 +1246,7 @@ void App::setBackground(const string& themedir) {
 		Pixmap p = image->createPixmap(Dpy, Scr, Root);
 		XSetWindowBackgroundPixmap(Dpy, Root, p);
 		XChangeProperty(Dpy, Root, BackgroundPixmapId, XA_PIXMAP, 32,
-			PropModeReplace, (unsigned char *)&p, 1);
+			PropModeReplace, reinterpret_cast<unsigned char*>(&p), 1);
 	}
 	XClearWindow(Dpy, Root);
 
