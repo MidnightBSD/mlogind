@@ -710,7 +710,11 @@ void App::Login() {
 			}
 		}
 		if (!dbusLaunch.empty()) {
-			loginCommand = dbusLaunch + " --exit-with-session " + loginCommand;
+			if (loginCommand.compare(0, 5, "exec ") == 0) {
+				loginCommand = "exec " + dbusLaunch + " --exit-with-session " + loginCommand.substr(5);
+			} else {
+				loginCommand = dbusLaunch + " --exit-with-session " + loginCommand;
+			}
 		}
 
 		string sessStart = cfg->getOption("sessionstart_cmd");
