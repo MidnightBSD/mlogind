@@ -89,32 +89,40 @@ int main(int argc, char **argv) {
 	// create a lock file to solve multiple instances problem
 	struct stat statbuf;
 	int lock_file;
-	const char *lock_path;
+	string lock_path;
+	uid_t uid = getuid();
+	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
 
-	if (!stat("/run/lock", &statbuf))
-		lock_path = "/run/lock/" APPNAME ".lock";
-	else
-		lock_path = "/var/lock/" APPNAME ".lock";
+	if (xdg_runtime_dir && !stat(xdg_runtime_dir, &statbuf) &&
+		S_ISDIR(statbuf.st_mode) && statbuf.st_uid == uid) {
+		lock_path = string(xdg_runtime_dir) + "/" APPNAME ".lock";
+	} else {
+		lock_path = "/run/user/" + to_string(uid) + "/" APPNAME ".lock";
+		if (stat(lock_path.substr(0, lock_path.rfind('/')).c_str(), &statbuf) != 0 ||
+			!S_ISDIR(statbuf.st_mode) || statbuf.st_uid != uid) {
+			die(APPNAME ": no private runtime directory found for lock file\n");
+		}
+	}
 
 	// Attempt to create the lock file safely
-	lock_file = open(lock_path, O_CREAT | O_RDWR | O_EXCL, 0644);
+	lock_file = open(lock_path.c_str(), O_CREAT | O_RDWR | O_EXCL, 0644);
 	if (lock_file < 0) {
 		if (errno == EEXIST) {
 			// File exists, check it
-			if (lstat(lock_path, &statbuf) != 0)
-				die(APPNAME ": could not stat existing lock file %s\n", lock_path);
+			if (lstat(lock_path.c_str(), &statbuf) != 0)
+				die(APPNAME ": could not stat existing lock file %s\n", lock_path.c_str());
 
 			if (S_ISLNK(statbuf.st_mode))
-				die(APPNAME ": security error: lock file %s is a symlink\n", lock_path);
+				die(APPNAME ": security error: lock file %s is a symlink\n", lock_path.c_str());
 
 			if (statbuf.st_uid != 0 && statbuf.st_uid != getuid())
-				die(APPNAME ": security error: lock file %s has suspicious ownership\n", lock_path);
+				die(APPNAME ": security error: lock file %s has suspicious ownership\n", lock_path.c_str());
 
-			lock_file = open(lock_path, O_RDWR);
+			lock_file = open(lock_path.c_str(), O_RDWR);
 			if (lock_file < 0)
-				die(APPNAME ": could not open existing lock file %s\n", lock_path);
+				die(APPNAME ": could not open existing lock file %s\n", lock_path.c_str());
 		} else {
-			die(APPNAME ": could not create lock file %s: %s\n", lock_path, strerror(errno));
+			die(APPNAME ": could not create lock file %s: %s\n", lock_path.c_str(), strerror(errno));
 		}
 	}
 
