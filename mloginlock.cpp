@@ -29,6 +29,8 @@
 #include <errno.h>
 #include <sys/file.h>
 #include <fcntl.h>
+#include <pwd.h>
+#include <unistd.h>
 
 #include "cfg.h"
 #include "util.h"
@@ -202,6 +204,12 @@ int main(int argc, char **argv) {
 	HideCursor();
 
 	loginPanel = new Panel(dpy, scr, win, cfg, themedir, Panel::Mode_Lock);
+
+	const struct passwd *pw = getpwuid(getuid());
+	if (pw == NULL || pw->pw_name == NULL || pw->pw_name[0] == '\0')
+		die(APPNAME ": could not determine current user for PAM authentication\n");
+
+	loginPanel->SetName(pw->pw_name);
 
 	int ret = pam_start(APPNAME, loginPanel->GetName().c_str(), &conv, &pam_handle);
 	// If we can't start PAM, just exit because mloginlock won't work right
