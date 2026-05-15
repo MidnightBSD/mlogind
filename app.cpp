@@ -427,6 +427,17 @@ void App::Run() {
 		switch(Action) {
 			case Panel::Login:
 				Login();
+#ifdef USE_PAM
+				try{
+					pam.start("mlogind");
+					pam.set_item(PAM::Authenticator::TTY, DisplayName);
+					pam.set_item(PAM::Authenticator::Requestor, "root");
+				}
+				catch(PAM::Exception& e){
+					logStream << APPNAME << ": " << e << endl;
+					exit(ERR_EXIT);
+				};
+#endif
 				firstloop = true;
 				break;
 			case Panel::Console:
