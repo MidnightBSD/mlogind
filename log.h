@@ -10,10 +10,8 @@
 #include "const.h"
 #include <fstream>
 
-using namespace std;
-
 class LogUnit {
-	ofstream logFile;
+	std::ofstream logFile;
 public:
 	bool openLog(const char * filename);
 	void closeLog();
@@ -29,7 +27,7 @@ public:
 		return *this;
 	}
 
-	LogUnit & operator<<(ostream & (*fp)(ostream&)) {
+	LogUnit & operator<<(std::ostream & (*fp)(std::ostream&)) {
 		if (logFile.is_open()) {
 			logFile << fp;
 			logFile.flush();
@@ -37,7 +35,7 @@ public:
 		return *this;
 	}
 
-	LogUnit & operator<<(ios_base & (*fp)(ios_base&)) {
+	LogUnit & operator<<(std::ios_base & (*fp)(std::ios_base&)) {
 		if (logFile.is_open()) {
 			logFile << fp;
 			logFile.flush();
@@ -46,6 +44,8 @@ public:
 	}
 };
 
-extern LogUnit logStream;
+/* Function-local static avoids cross-TU static initialization order issues. */
+LogUnit& getLogStream();
+#define logStream getLogStream()
 
 #endif /* _LOG_H_ */

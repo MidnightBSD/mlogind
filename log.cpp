@@ -5,12 +5,12 @@ bool
 LogUnit::openLog(const char * filename)
 {
 	if (logFile.is_open()) {
-		cerr << APPNAME
+		std::cerr << APPNAME
 			<< ": opening a new Log file, while another is already open"
-			<< endl;
+			<< std::endl;
 		logFile.close();
 	}
-	logFile.open(filename, ios_base::app);
+	logFile.open(filename, std::ios_base::app);
 
 	return !(logFile.fail());
 }
@@ -22,4 +22,7 @@ LogUnit::closeLog()
 		logFile.close();
 }
 
-LogUnit logStream;
+LogUnit& getLogStream() {
+	static LogUnit instance;
+	return instance;
+}
