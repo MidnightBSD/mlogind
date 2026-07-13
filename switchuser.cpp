@@ -23,10 +23,11 @@
 using namespace std;
 
 SwitchUser::SwitchUser(struct passwd *pw, Cfg *c, const string& display,
-					   char** _env)
+					   char** _env, const string& authfile)
 	: cfg(c),
 	  Pw(pw),
 	  displayName(display),
+	  authFile(authfile),
 	  env(_env)
 {
 }
@@ -37,7 +38,10 @@ SwitchUser::~SwitchUser() {
 
 void SwitchUser::Login(const char* cmd, const char* mcookie) {
 	SetUserId();
-	SetClientAuth(mcookie);
+	if (!SetClientAuth(mcookie)) {
+		logStream << APPNAME << ": could not create session Xauthority file" << endl;
+		_exit(ERR_EXIT);
+	}
 	Execute(cmd);
 }
 
@@ -95,10 +99,9 @@ void SwitchUser::Execute(const char* cmd) {
 	logStream << APPNAME << ": could not execute login command" << endl;
 }
 
-void SwitchUser::SetClientAuth(const char* mcookie) {
-	string home = string(Pw->pw_dir);
-	string authfile = home + "/.Xauthority";
-	remove(authfile.c_str());
-	Util::add_mcookie(mcookie, displayName.c_str(), cfg->getOption("xauth_path"),
-	  authfile);
+bool SwitchUser::SetClientAuth(const char* mcookie) {
+	if (authFile.empty())
+		return false;
+	return Util::add_mcookie(mcookie, displayName.c_str(),
+		cfg->getOption("xauth_path"), authFile);
 }

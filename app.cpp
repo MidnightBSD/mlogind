@@ -233,6 +233,24 @@ static bool ensure_runtime_dir(uid_t uid, string &runtime_dir, bool &created) {
 	return false;
 }
 
+/* Create the session authority file before dropping privileges.  O_EXCL and
+ * O_NOFOLLOW prevent an existing path or final symlink from being reused. */
+static bool create_session_authfile(const string &path, uid_t uid, gid_t gid) {
+	int flags = O_RDWR | O_CREAT | O_EXCL;
+#ifdef O_NOFOLLOW
+	flags |= O_NOFOLLOW;
+#endif
+	int fd = open(path.c_str(), flags, 0600);
+	if (fd == -1)
+		return false;
+	bool valid = fchown(fd, uid, gid) == 0 && fchmod(fd, 0600) == 0;
+	if (close(fd) != 0)
+		valid = false;
+	if (!valid)
+		unlink(path.c_str());
+	return valid;
+}
+
 static string configured_vt(Cfg *config, bool daemon) {
 	istringstream arguments(config->getOption("xserver_arguments"));
 	string argument;
@@ -528,7 +546,7 @@ void App::Run() {
 #ifndef XNEST_DEBUG
 				/* Restart the X server between sessions to force auth cookie
 				 * rotation. This prevents a logged-out user from reconnecting
-				 * to the running display using their old ~/.Xauthority. */
+				 * to the running display using the old session authority. */
 				delete LoginPanel;
 				LoginPanel = nullptr;
 				StopServer();
@@ -755,8 +773,7 @@ void App::Login() {
 	string maildir = _PATH_MAILDIR;
 	maildir.append("/");
 	maildir.append(pw->pw_name);
-	string xauthority = pw->pw_dir;
-	xauthority.append("/.Xauthority");
+	string xauthority = runtime_dir + "/Xauthority-" + session_id;
 
 #ifdef USE_PAM
 	/* Setup the PAM environment */
@@ -799,6 +816,22 @@ void App::Login() {
 		exit(ERR_EXIT);
 	}
 #endif
+	bool session_auth_created = create_session_authfile(xauthority,
+		pw->pw_uid, pw->pw_gid);
+	if (!session_auth_created) {
+		logStream << APPNAME << ": could not create session Xauthority file "
+			  << xauthority << endl;
+#ifdef USE_PAM
+		try {
+			pam.close_session();
+			pam.end();
+		} catch (PAM::Exception&) {
+		}
+#endif
+		if (runtime_dir_created)
+			rmdir(runtime_dir.c_str());
+		return;
+	}
 
 	/*
 	 * On MidnightBSD/FreeBSD, retain orphaned descendants of the session
@@ -832,6 +865,8 @@ void App::Login() {
 #endif
 		if (runtime_dir_created)
 			rmdir(runtime_dir.c_str());
+		if (session_auth_created)
+			unlink(xauthority.c_str());
 		return;
 	}
 	if(pid == 0) {
@@ -907,7 +942,7 @@ void App::Login() {
 		}
 
 		/* Login process starts here */
-		SwitchUser Su(pw, cfg, DisplayName, child_env);
+		SwitchUser Su(pw, cfg, DisplayName, child_env, xauthority);
 		string session = LoginPanel->getSession();
 		string loginCommand = cfg->getOption("login_cmd");
 
@@ -1045,6 +1080,9 @@ void App::Login() {
 				  << strerror(errno) << endl;
 	}
 #endif
+	if (session_auth_created && unlink(xauthority.c_str()) != 0 && errno != ENOENT)
+		logStream << APPNAME << ": could not remove session Xauthority file "
+			  << xauthority << ": " << strerror(errno) << endl;
 	if (runtime_dir_created && rmdir(runtime_dir.c_str()) != 0 && errno != ENOTEMPTY)
 		logStream << APPNAME << ": could not remove XDG_RUNTIME_DIR "
 			  << runtime_dir << ": " << strerror(errno) << endl;
