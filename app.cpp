@@ -165,6 +165,30 @@ static void AddToEnv(char*** curr_env, const char *name, const char *value) {
 	*curr_env = new_env;
 }
 
+/* The main configuration contains commands executed with elevated
+ * privileges.  When running as root, require both the file and its parent
+ * directory to be controlled by root and reject symlinks. */
+static bool secure_command_config(const char *path) {
+	if (geteuid() != 0)
+		return true;
+
+	struct stat st;
+	if (lstat(path, &st) != 0)
+		return errno == ENOENT;
+	if (!S_ISREG(st.st_mode) || st.st_uid != 0 ||
+		(st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+		return false;
+
+	std::string filename(path);
+	std::string directory = filename.substr(0, filename.rfind('/'));
+	if (directory.empty())
+		directory = ".";
+	if (lstat(directory.c_str(), &st) != 0)
+		return false;
+	return S_ISDIR(st.st_mode) && st.st_uid == 0 &&
+		(st.st_mode & (S_IWGRP | S_IWOTH)) == 0;
+}
+
 #ifdef USE_PAM
 App::App(int argc, char** argv)
   : pam(conv, static_cast<void*>(&LoginPanel))
@@ -246,6 +270,11 @@ void App::Run() {
 
 	/* Read configuration and theme */
 	cfg = new Cfg;
+	if (!secure_command_config(CFGFILE)) {
+		std::cerr << APPNAME << ": refusing insecure command configuration: "
+			  << CFGFILE << std::endl;
+		exit(ERR_EXIT);
+	}
 	cfg->readConf(CFGFILE);
 	string themebase = "";
 	string themefile = "";

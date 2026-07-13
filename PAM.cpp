@@ -11,11 +11,20 @@
 #include "PAM.h"
 
 namespace PAM {
+	static const char* error_string(pam_handle_t* handle, int errnum){
+		if (handle != NULL) {
+			const char* message = pam_strerror(handle, errnum);
+			if (message != NULL)
+				return message;
+		}
+		return "PAM handle unavailable";
+	}
+
 	Exception::Exception(pam_handle_t* _pam_handle,
 					const std::string& _func_name,
 					int _errnum):
-		errnum(_errnum),
-		errstr(pam_strerror(_pam_handle, _errnum)),
+			errnum(_errnum),
+			errstr(error_string(_pam_handle, _errnum)),
 		func_name(_func_name)
 		{}
 
@@ -60,10 +69,10 @@ namespace PAM {
 		return;
 	}
 
-	void Authenticator::end(void){
-		switch((last_result=_end())){
-			default:
-				throw Exception(pam_handle, "pam_end()", last_result);
+		void Authenticator::end(void){
+			switch((last_result=_end())){
+				default:
+					throw Exception(NULL, "pam_end()", last_result);
 
 			case PAM_SUCCESS:
 				break;
@@ -71,11 +80,14 @@ namespace PAM {
 		return;
 	}
 
-	void Authenticator::set_item(const Authenticator::ItemType item, const void* value){
-		switch((last_result=pam_set_item(pam_handle, item, value))){
-			default:
-			_end();
-				throw Exception(pam_handle, "pam_set_item()", last_result);
+		void Authenticator::set_item(const Authenticator::ItemType item, const void* value){
+			switch((last_result=pam_set_item(pam_handle, item, value))){
+				default:
+				{
+					Exception error(pam_handle, "pam_set_item()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_SUCCESS:
 				break;
@@ -87,12 +99,15 @@ namespace PAM {
 		const void* data;
 		switch ((last_result=pam_get_item(pam_handle, item, &data))){
 			default:
-			case PAM_SYSTEM_ERR:
+				case PAM_SYSTEM_ERR:
 #ifdef __LIBPAM_VERSION
 			case PAM_BAD_ITEM:
 #endif
-				_end();
-				throw Exception(pam_handle, "pam_get_item()", last_result);
+				{
+					Exception error(pam_handle, "pam_get_item()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_PERM_DENIED: /* The value of item was NULL */
 			case PAM_SUCCESS:
@@ -102,11 +117,14 @@ namespace PAM {
 	}
 
 #ifdef __LIBPAM_VERSION
-	void Authenticator::fail_delay(const unsigned int micro_sec){
-		switch((last_result=pam_fail_delay(pam_handle, micro_sec))){
-			default:
-				_end();
-				throw Exception(pam_handle, "fail_delay()", last_result);
+		void Authenticator::fail_delay(const unsigned int micro_sec){
+			switch((last_result=pam_fail_delay(pam_handle, micro_sec))){
+				default:
+				{
+					Exception error(pam_handle, "fail_delay()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_SUCCESS:
 				break;
@@ -119,9 +137,12 @@ namespace PAM {
 		switch((last_result=pam_authenticate(pam_handle, 0))){
 			default:
 			case PAM_ABORT:
-			case PAM_AUTHINFO_UNAVAIL:
-				_end();
-				throw Exception(pam_handle, "pam_authenticate()", last_result);
+				case PAM_AUTHINFO_UNAVAIL:
+				{
+					Exception error(pam_handle, "pam_authenticate()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_USER_UNKNOWN:
 			case PAM_MAXTRIES:
@@ -143,9 +164,12 @@ namespace PAM {
 			default:
 			/* case PAM_NEW_AUTHTOKEN_REQD: */
 			case PAM_ACCT_EXPIRED:
-			case PAM_USER_UNKNOWN:
-				_end();
-				throw Exception(pam_handle, "pam_acct_mgmt()", last_result);
+				case PAM_USER_UNKNOWN:
+				{
+					Exception error(pam_handle, "pam_acct_mgmt()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_AUTH_ERR:
 			case PAM_PERM_DENIED:
@@ -161,9 +185,12 @@ namespace PAM {
 		switch((last_result=pam_setcred(pam_handle, PAM_ESTABLISH_CRED))){
 			default:
 			case PAM_CRED_ERR:
-			case PAM_CRED_UNAVAIL:
-				_end();
-				throw Exception(pam_handle, "pam_setcred()", last_result);
+				case PAM_CRED_UNAVAIL:
+				{
+					Exception error(pam_handle, "pam_setcred()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_CRED_EXPIRED:
 			case PAM_USER_UNKNOWN:
@@ -179,11 +206,14 @@ namespace PAM {
 			   don't exists in the actual implementation. This issue needs
 			   to be fixes at some point. */
 
-			default:
-			/* case PAM_SESSION_ERROR: */
-				pam_setcred(pam_handle, PAM_DELETE_CRED);
-				_end();
-				throw Exception(pam_handle, "pam_open_session()", last_result);
+				default:
+				/* case PAM_SESSION_ERROR: */
+					pam_setcred(pam_handle, PAM_DELETE_CRED);
+				{
+					Exception error(pam_handle, "pam_open_session()", last_result);
+					_end();
+					throw error;
+					}
 
 			case PAM_SUCCESS:
 				break;
@@ -198,11 +228,14 @@ namespace PAM {
 			   don't exists in the actual implementation. This issue needs
 			   to be fixes at some point. */
 
-			default:
-			/* case PAM_SESSION_ERROR: */
-				pam_setcred(pam_handle, PAM_DELETE_CRED);
-				_end();
-				throw Exception(pam_handle, "pam_close_session", last_result);
+				default:
+				/* case PAM_SESSION_ERROR: */
+					pam_setcred(pam_handle, PAM_DELETE_CRED);
+				{
+					Exception error(pam_handle, "pam_close_session", last_result);
+					_end();
+					throw error;
+					}
 
 			case PAM_SUCCESS:
 				break;
@@ -212,9 +245,12 @@ namespace PAM {
 			case PAM_CRED_ERR:
 			case PAM_CRED_UNAVAIL:
 			case PAM_CRED_EXPIRED:
-			case PAM_USER_UNKNOWN:
-				_end();
-				throw Exception(pam_handle, "pam_setcred()", last_result);
+				case PAM_USER_UNKNOWN:
+				{
+					Exception error(pam_handle, "pam_setcred()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_SUCCESS:
 				break;
@@ -230,10 +266,13 @@ namespace PAM {
 			case PAM_ABORT:
 			case PAM_BUF_ERR:
 #ifdef __LIBPAM_VERSION
-			case PAM_BAD_ITEM:
+				case PAM_BAD_ITEM:
 #endif
-				_end();
-				throw Exception(pam_handle, "pam_putenv()", last_result);
+				{
+					Exception error(pam_handle, "pam_putenv()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_SUCCESS:
 				break;
@@ -248,10 +287,13 @@ namespace PAM {
 			case PAM_ABORT:
 			case PAM_BUF_ERR:
 #ifdef __LIBPAM_VERSION
-			case PAM_BAD_ITEM:
+				case PAM_BAD_ITEM:
 #endif
-				_end();
-				throw Exception(pam_handle, "pam_putenv()", last_result);
+				{
+					Exception error(pam_handle, "pam_putenv()", last_result);
+					_end();
+					throw error;
+				}
 
 			case PAM_SUCCESS:
 				break;

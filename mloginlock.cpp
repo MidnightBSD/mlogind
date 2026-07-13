@@ -76,6 +76,27 @@ die(const char *errstr, ...) {
 	exit(EXIT_FAILURE);
 }
 
+static bool secure_command_config(const char *path) {
+	if (geteuid() != 0)
+		return true;
+
+	struct stat st;
+	if (lstat(path, &st) != 0)
+		return errno == ENOENT;
+	if (!S_ISREG(st.st_mode) || st.st_uid != 0 ||
+		(st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+		return false;
+
+	string filename(path);
+	string directory = filename.substr(0, filename.rfind('/'));
+	if (directory.empty())
+		directory = ".";
+	if (lstat(directory.c_str(), &st) != 0)
+		return false;
+	return S_ISDIR(st.st_mode) && st.st_uid == 0 &&
+		(st.st_mode & (S_IWGRP | S_IWOTH)) == 0;
+}
+
 int main(int argc, char **argv) {
 	if((argc == 2) && !strcmp("-v", argv[1]))
 		die(APPNAME " " VERSION ", © 2010-2012 Joel Burget\n");
@@ -138,6 +159,9 @@ int main(int argc, char **argv) {
 	unsigned int cfg_passwd_timeout;
 	// Read user's current theme
 	cfg = new Cfg;
+	if (!secure_command_config(CFGFILE) ||
+		!secure_command_config(MLOGINLOCKCFG))
+		die(APPNAME ": refusing insecure command configuration\n");
 	cfg->readConf(CFGFILE);
 	cfg->readConf(MLOGINLOCKCFG);
 	string themebase = "";
