@@ -189,6 +189,42 @@ static bool secure_command_config(const char *path) {
 		(st.st_mode & (S_IWGRP | S_IWOTH)) == 0;
 }
 
+/* Create or validate the per-user runtime directory required by the XDG
+ * Base Directory Specification.  Do not trust an inherited root-side
+ * XDG_RUNTIME_DIR: the login manager must select the directory for the
+ * authenticated user. */
+static bool ensure_runtime_dir(uid_t uid, string &runtime_dir, bool &created) {
+	static const char *bases[] = { "/var/run/user", "/run/user", NULL };
+	struct stat st;
+	created = false;
+
+	for (int i = 0; bases[i] != NULL; i++) {
+		if (lstat(bases[i], &st) != 0) {
+			if (errno != ENOENT || geteuid() != 0 ||
+				mkdir(bases[i], 0755) != 0)
+				continue;
+			if (lstat(bases[i], &st) != 0)
+				continue;
+		}
+		if (!S_ISDIR(st.st_mode) || st.st_uid != 0 ||
+			(st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+			continue;
+
+		runtime_dir = string(bases[i]) + "/" + to_string(uid);
+		if (mkdir(runtime_dir.c_str(), 0700) != 0) {
+			if (errno != EEXIST)
+				return false;
+		} else {
+			created = true;
+		}
+		if (lstat(runtime_dir.c_str(), &st) != 0)
+			return false;
+		return S_ISDIR(st.st_mode) && st.st_uid == uid &&
+			(st.st_mode & 0777) == 0700;
+	}
+	return false;
+}
+
 #ifdef USE_PAM
 App::App(int argc, char** argv)
   : pam(conv, static_cast<void*>(&LoginPanel))
@@ -660,6 +696,23 @@ void App::Login() {
 		/* shell is freed when this child process exits */
 	}
 
+	string runtime_dir;
+	bool runtime_dir_created = false;
+	if (!ensure_runtime_dir(pw->pw_uid, runtime_dir, runtime_dir_created)) {
+		logStream << APPNAME << ": could not create or validate XDG_RUNTIME_DIR for "
+			  << pw->pw_name << endl;
+#ifdef USE_PAM
+		try {
+			pam.close_session();
+			pam.end();
+		} catch (PAM::Exception&) {
+		}
+#endif
+		if (runtime_dir_created)
+			rmdir(runtime_dir.c_str());
+		return;
+	}
+
 	/* Setup the environment */
 	char* term = getenv("TERM");
 	string maildir = _PATH_MAILDIR;
@@ -681,6 +734,7 @@ void App::Login() {
 		pam.setenv("DISPLAY", DisplayName);
 		pam.setenv("MAIL", maildir.c_str());
 		pam.setenv("XAUTHORITY", xauthority.c_str());
+		pam.setenv("XDG_RUNTIME_DIR", runtime_dir.c_str());
 	}
 	catch(PAM::Exception& e){
 		logStream << APPNAME << ": " << e << endl;
@@ -725,10 +779,10 @@ void App::Login() {
 # endif /* USE_CONSOLEKIT */
 #else
 
-# ifdef USE_CONSOLEKIT
+	# ifdef USE_CONSOLEKIT
+		const int Num_Of_Variables = 13; /* Number of env. variables + 1 */
+	# else
 		const int Num_Of_Variables = 12; /* Number of env. variables + 1 */
-# else
-		const int Num_Of_Variables = 11; /* Number of env. variables + 1 */
 # endif /* USE_CONSOLEKIT */
 		char** child_env = static_cast<char**>(malloc(sizeof(char*)*Num_Of_Variables));
 		if (child_env == NULL)
@@ -744,6 +798,7 @@ void App::Login() {
 		child_env[n++]=StrConcat("DISPLAY=", DisplayName);
 		child_env[n++]=StrConcat("MAIL=", maildir.c_str());
 		child_env[n++]=StrConcat("XAUTHORITY=", xauthority.c_str());
+		child_env[n++]=StrConcat("XDG_RUNTIME_DIR=", runtime_dir.c_str());
 # ifdef USE_CONSOLEKIT
 		child_env[n++]=StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
 # endif /* USE_CONSOLEKIT */
@@ -867,8 +922,7 @@ void App::Login() {
 		logStream << APPNAME << ": " << e << endl;
 	};
 #endif
-
-/* Close all clients */
+	/* Close all clients */
 	KillAllClients(False);
 	KillAllClients(True);
 
@@ -878,6 +932,9 @@ void App::Login() {
 	/* Send TERM signal to clientgroup, if error send KILL */
 	if(killpg(pid, SIGTERM))
 	killpg(pid, SIGKILL);
+	if (runtime_dir_created && rmdir(runtime_dir.c_str()) != 0 && errno != ENOTEMPTY)
+		logStream << APPNAME << ": could not remove XDG_RUNTIME_DIR "
+			  << runtime_dir << ": " << strerror(errno) << endl;
 
 	HideCursor();
 
