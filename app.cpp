@@ -256,6 +256,8 @@ void App::Run() {
 	} else {
 		themebase = string(THEMESDIR) + "/";
 		themeName = cfg->getOption("current_theme");
+		if (themeName.empty())
+			themeName = "default";
 		string::size_type pos;
 		if ((pos = themeName.find(",")) != string::npos) {
 			/* input is a set */
@@ -1424,7 +1426,7 @@ string App::findValidRandomTheme(const string& set)
 	string name = set;
 	struct stat buf;
 
-	if (name[name.length()-1] == ',') {
+	if (!name.empty() && name[name.length()-1] == ',') {
 		name = name.substr(0, name.length() - 1);
 	}
 
@@ -1433,13 +1435,15 @@ string App::findValidRandomTheme(const string& set)
 	vector<string> themes;
 	string themefile;
 	Cfg::split(themes, name, ',');
+	if (themes.empty())
+		return "";
 	do {
-		int sel = Util::random() % themes.size();
+		size_t sel = static_cast<size_t>(Util::random()) % themes.size();
 
 		name = Cfg::Trim(themes[sel]);
 		themefile = string(THEMESDIR) +"/" + name + THEMESFILE;
 		if (stat(themefile.c_str(), &buf) != 0) {
-			themes.erase(find(themes.begin(), themes.end(), name));
+			themes.erase(themes.begin() + sel);
 			logStream << APPNAME << ": Invalid theme in config: "
 				 << name << endl;
 			name = "";

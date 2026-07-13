@@ -84,8 +84,10 @@ reboot_msg         The system is rebooting...
 # Set to "yes" to enable this feature
 #focus_password      no
 
-# Automatically login the default user (without entering
-# the password. Set to "yes" to enable this feature
+# Automatically login the default user without entering a password.
+# WARNING: this skips authentication and grants unattended access to the
+# default_user account. Use only for a physically secured kiosk with a
+# dedicated account. Set to "yes" to enable this feature.
 #auto_login          no
 
 
@@ -109,4 +111,3 @@ logfile             /var/log/mlogind.log
 # clock_shadow_xoffset 0
 # clock_shadow_yoffset 0
 # clock_shadow_color  #FFFFFF
-
