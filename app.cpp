@@ -84,6 +84,9 @@ int conv(int num_msg, const struct pam_message **msg,
 					case Panel::Restart:
 						result=PAM_CONV_ERR;
 						break;
+					case Panel::Theme:
+						result=PAM_CONV_ERR;
+						break;
 					default:
 						break;
 				}
@@ -95,6 +98,7 @@ int conv(int num_msg, const struct pam_message **msg,
 					case Panel::Console:
 					case Panel::Exit:
 					case Panel::Restart:
+					case Panel::Theme:
 						/* We should leave now! */
 						result=PAM_CONV_ERR;
 						break;
@@ -359,20 +363,40 @@ void App::Run() {
 	string themebase = "";
 	string themefile = "";
 	string themedir = "";
+	vector<string> themeSet;
+	size_t themeIndex = 0;
 	themeName = "";
 	if (testing) {
 		themeName = testtheme;
 	} else {
 		themebase = string(THEMESDIR) + "/";
-		themeName = cfg->getOption("current_theme");
+		string configuredThemes = cfg->getOption("current_theme");
+		themeName = configuredThemes;
 		if (themeName.empty())
 			themeName = "default";
 		string::size_type pos;
 		if ((pos = themeName.find(",")) != string::npos) {
-			/* input is a set */
-			themeName = findValidRandomTheme(themeName);
+			/* Retain valid entries so F2 can cycle through the set. */
+			vector<string> configuredSet;
+			Cfg::split(configuredSet, configuredThemes, ',');
+			for (size_t i = 0; i < configuredSet.size(); i++) {
+				string candidate = Cfg::Trim(configuredSet[i]);
+				struct stat st;
+				if (!candidate.empty() &&
+					stat((themebase + candidate + THEMESFILE).c_str(), &st) == 0 &&
+					S_ISREG(st.st_mode) && access((themebase + candidate + THEMESFILE).c_str(), R_OK) == 0)
+					themeSet.push_back(candidate);
+			}
+			themeName = findValidRandomTheme(configuredThemes);
 			if (themeName == "") {
 				themeName = "default";
+			} else {
+				for (size_t i = 0; i < themeSet.size(); i++) {
+					if (themeSet[i] == themeName) {
+						themeIndex = i;
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -604,6 +628,38 @@ void App::Run() {
 			case Panel::Restart:
 				RestartServer();
 				break;
+			case Panel::Theme:
+				if (themeSet.size() > 1) {
+					bool switched = false;
+					for (size_t attempt = 0; attempt < themeSet.size(); attempt++) {
+						size_t next = (themeIndex + attempt + 1) % themeSet.size();
+						string nextTheme = themeSet[next];
+						string nextThemeFile = themebase + nextTheme + THEMESFILE;
+						Cfg *nextCfg = new Cfg;
+						if (!nextCfg->readConf(CFGFILE) ||
+							!nextCfg->readConf(nextThemeFile)) {
+							delete nextCfg;
+							continue;
+						}
+						delete cfg;
+						cfg = nextCfg;
+						themeIndex = next;
+						themeName = nextTheme;
+						themedir = themebase + themeName;
+						themefile = nextThemeFile;
+						delete LoginPanel;
+						LoginPanel = nullptr;
+						setBackground(themedir);
+						LoginPanel = new Panel(Dpy, Scr, Root, cfg, themedir, Panel::Mode_DM);
+						LoginPanel->SwitchSession();
+						focuspass = cfg->getOption("focus_password") == "yes";
+						switched = true;
+						break;
+					}
+					if (!switched)
+						logStream << APPNAME << ": could not load another configured theme" << endl;
+				}
+				break;
 			default:
 				break;
 		}
@@ -623,6 +679,7 @@ bool App::AuthenticateUser(bool focuspass){
 			case Panel::Exit:
 			case Panel::Console:
 			case Panel::Restart:
+			case Panel::Theme:
 				return true; /* <--- This is simply fake! */
 			default:
 				break;
@@ -644,6 +701,7 @@ bool App::AuthenticateUser(bool focuspass){
 			case Panel::Exit:
 			case Panel::Console:
 			case Panel::Restart:
+			case Panel::Theme:
 				logStream << APPNAME << ": Got a special command (" << LoginPanel->GetName() << ")" << endl;
 				return true; /* <--- This is simply fake! */
 			default:
@@ -651,13 +709,18 @@ bool App::AuthenticateUser(bool focuspass){
 		}
 	}
 	LoginPanel->EventHandler(Panel::Get_Passwd);
-	if (LoginPanel->getAction() == Panel::Restart)
+	if (LoginPanel->getAction() == Panel::Restart ||
+		LoginPanel->getAction() == Panel::Theme)
 		return true;
 
 	char *encrypted, *correct;
 	struct passwd *pw;
 
 	switch(LoginPanel->getAction()){
+		case Panel::Lock:
+		case Panel::Restart:
+		case Panel::Theme:
+			return true;
 		case Panel::Suspend:
 		case Panel::Halt:
 		case Panel::Reboot:

@@ -597,6 +597,13 @@ bool Panel::OnKeyPress(XEvent& event) {
 			SwitchSession();
 			return true;
 
+		case XK_F2:
+			if (mode == Mode_DM) {
+				action = Theme;
+				return false;
+			}
+			return true;
+
 		case XK_F11:
 			/* Take a screenshot when explicitly configured. */
 			if (!cfg->getOption("screenshot_cmd").empty())

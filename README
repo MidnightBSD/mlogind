@@ -41,6 +41,9 @@ USAGE
     pressing the F11 key executes a user-specified
     command (see the configuration file), the default
     is to take a screenshot if the 'import' program is available.
+
+    pressing the F2 key cycles through configured themes when
+    current_theme contains a comma-separated theme set.
     
 CONFIGURATION
     /usr/local/etc/mlogind.conf is the main configuration file.

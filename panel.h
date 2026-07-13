@@ -57,7 +57,8 @@ public:
 		Halt,
 		Exit,
 		Suspend,
-		Restart
+		Restart,
+		Theme
 	};
 
 	enum FieldType {

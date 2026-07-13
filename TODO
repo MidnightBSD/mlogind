@@ -8,7 +8,6 @@ Remaining
     current_theme = t1, t2, t3 \
 		    t4, t5
 - FreeBSD fixes
-- allow switching theme on the fly if a set is specified in mlogind.conf
 
 Security audit follow-up
 ------------------------

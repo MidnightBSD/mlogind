@@ -92,8 +92,8 @@ reboot_msg         The system is rebooting...
 #auto_login          no
 
 
-# current theme, use comma separated list to specify a set to 
-# randomly choose from
+# Current theme. Use a comma-separated set to choose from at startup.
+# Press F2 at the login panel to cycle through the configured themes.
 current_theme       default
 
 # Lock file
