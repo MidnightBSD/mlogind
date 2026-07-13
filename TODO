@@ -9,7 +9,6 @@ Remaining
 		    t4, t5
 - FreeBSD fixes
 - allow switching theme on the fly if a set is specified in mlogind.conf
-- text alignment, to allow to center texts of unknown length (e.g. %host)
 
 Security audit follow-up
 ------------------------
