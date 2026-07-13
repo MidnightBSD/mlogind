@@ -194,7 +194,12 @@ static bool secure_command_config(const char *path) {
  * XDG_RUNTIME_DIR: the login manager must select the directory for the
  * authenticated user. */
 static bool ensure_runtime_dir(uid_t uid, string &runtime_dir, bool &created) {
-	static const char *bases[] = { "/var/run/user", "/run/user", NULL };
+	static const char *bases[] = {
+		"/var/run/user",
+		"/var/run/xdg",
+		"/run/user",
+		NULL
+	};
 	struct stat st;
 	created = false;
 
@@ -712,6 +717,19 @@ void App::Login() {
 			rmdir(runtime_dir.c_str());
 		return;
 	}
+	static unsigned long session_counter = 0;
+	string session_id = "mlogind-" + to_string(getpid()) + "-" +
+		to_string(++session_counter);
+	string session_desktop = LoginPanel->getSessionDesktop();
+	string current_desktop = session_desktop;
+	for (size_t i = 0; i < current_desktop.size(); i++) {
+		if (current_desktop[i] == ';')
+			current_desktop[i] = ':';
+	}
+	string desktop = session_desktop;
+	string::size_type desktop_separator = desktop.find(';');
+	if (desktop_separator != string::npos)
+		desktop.erase(desktop_separator);
 
 	/* Setup the environment */
 	char* term = getenv("TERM");
@@ -735,6 +753,14 @@ void App::Login() {
 		pam.setenv("MAIL", maildir.c_str());
 		pam.setenv("XAUTHORITY", xauthority.c_str());
 		pam.setenv("XDG_RUNTIME_DIR", runtime_dir.c_str());
+		pam.setenv("XDG_SESSION_ID", session_id.c_str());
+		pam.setenv("XDG_SESSION_TYPE", "x11");
+		pam.setenv("XDG_SESSION_CLASS", "user");
+		pam.setenv("XDG_SEAT", "seat0");
+		if (!current_desktop.empty())
+			pam.setenv("XDG_CURRENT_DESKTOP", current_desktop.c_str());
+		if (!desktop.empty())
+			pam.setenv("XDG_SESSION_DESKTOP", desktop.c_str());
 	}
 	catch(PAM::Exception& e){
 		logStream << APPNAME << ": " << e << endl;
@@ -780,9 +806,9 @@ void App::Login() {
 #else
 
 	# ifdef USE_CONSOLEKIT
-		const int Num_Of_Variables = 13; /* Number of env. variables + 1 */
+		const int Num_Of_Variables = 17; /* Number of env. variables + 1 */
 	# else
-		const int Num_Of_Variables = 12; /* Number of env. variables + 1 */
+		const int Num_Of_Variables = 16; /* Number of env. variables + 1 */
 # endif /* USE_CONSOLEKIT */
 		char** child_env = static_cast<char**>(malloc(sizeof(char*)*Num_Of_Variables));
 		if (child_env == NULL)
@@ -799,12 +825,20 @@ void App::Login() {
 		child_env[n++]=StrConcat("MAIL=", maildir.c_str());
 		child_env[n++]=StrConcat("XAUTHORITY=", xauthority.c_str());
 		child_env[n++]=StrConcat("XDG_RUNTIME_DIR=", runtime_dir.c_str());
+		child_env[n++]=StrConcat("XDG_SESSION_ID=", session_id.c_str());
+		child_env[n++]=StrConcat("XDG_SESSION_TYPE=x11", "");
+		child_env[n++]=StrConcat("XDG_SESSION_CLASS=user", "");
+		child_env[n++]=StrConcat("XDG_SEAT=seat0", "");
 # ifdef USE_CONSOLEKIT
 		child_env[n++]=StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
 # endif /* USE_CONSOLEKIT */
-		child_env[n++]=0;
+			child_env[n++]=0;
 
 #endif
+		if (!current_desktop.empty())
+			AddToEnv(&child_env, "XDG_CURRENT_DESKTOP", current_desktop.c_str());
+		if (!desktop.empty())
+			AddToEnv(&child_env, "XDG_SESSION_DESKTOP", desktop.c_str());
 
 		login_cap_t *lc = login_getpwclass(pw);
 		if (lc != NULL) {
@@ -825,15 +859,18 @@ void App::Login() {
 		replaceVariables(loginCommand, SESSION_VAR, Util::shell_escape(session));
 		replaceVariables(loginCommand, THEME_VAR, Util::shell_escape(themeName));
 
-		/* Wrap login command with dbus-launch to establish a DBus session bus.
+		/* Wrap login command with a per-session bus when available.
 		 * This is required for desktop environments like XFCE 4.20 that use
 		 * DBus for settings persistence (xfconf). On non-systemd systems such
-		 * as MidnightBSD, dbus-launch is the standard way to start the session
-		 * bus and export DBUS_SESSION_BUS_ADDRESS to child processes. */
+		 * as MidnightBSD, prefer dbus-run-session and retain dbus-launch as a
+		 * compatibility fallback. */
 		string dbusLaunch = cfg->getOption("dbus_launch");
+		bool dbus_run_session = false;
 		if (dbusLaunch == "auto") {
 			dbusLaunch = "";
 			static const char* candidates[] = {
+				"/usr/local/bin/dbus-run-session",
+				"/usr/bin/dbus-run-session",
 				"/usr/local/bin/dbus-launch",
 				"/usr/bin/dbus-launch",
 				NULL
@@ -841,15 +878,19 @@ void App::Login() {
 			for (int i = 0; candidates[i] != NULL; i++) {
 				if (access(candidates[i], X_OK) == 0) {
 					dbusLaunch = candidates[i];
+					dbus_run_session = string(candidates[i]).find("dbus-run-session") != string::npos;
 					break;
 				}
 			}
 		}
+		if (!dbus_run_session && dbusLaunch.find("dbus-run-session") != string::npos)
+			dbus_run_session = true;
 		if (!dbusLaunch.empty()) {
+			string dbus_arguments = dbus_run_session ? " -- " : " --exit-with-session ";
 			if (loginCommand.compare(0, 5, "exec ") == 0) {
-				loginCommand = "exec " + dbusLaunch + " --exit-with-session " + loginCommand.substr(5);
+				loginCommand = "exec " + dbusLaunch + dbus_arguments + loginCommand.substr(5);
 			} else {
-				loginCommand = dbusLaunch + " --exit-with-session " + loginCommand;
+				loginCommand = dbusLaunch + dbus_arguments + loginCommand;
 			}
 		}
 

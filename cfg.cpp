@@ -56,7 +56,7 @@ Cfg::Cfg()
 	options.insert(option("reboot_msg","The system is rebooting..."));
 	options.insert(option("sessiondir",""));
 	options.insert(option("hidecursor","false"));
-	options.insert(option("dbus_launch",""));
+	options.insert(option("dbus_launch","auto"));
 
 	/* Theme stuff */
 	options.insert(option("input_panel_x","50%"));
@@ -144,6 +144,7 @@ Cfg::Cfg()
 	options.insert(option("clock_shadow_color","#FFFFFF"));
 
 	error = "";
+	currentSessionDesktop = "";
 }
 
 Cfg::~Cfg() {
@@ -307,8 +308,9 @@ void Cfg::fillSessionList(){
 	string strSessionDir  = getOption("sessiondir");
 
 	sessions.clear();
+	currentSessionDesktop = "";
 
-	pair<string,string> session("", "default");
+	SessionEntry session = {"", "default", ""};
 	sessions.push_back(session);
 
 	if( !strSessionDir.empty() ) {
@@ -329,21 +331,19 @@ void Cfg::fillSessionList(){
                             access(strFile.c_str(), R_OK) == 0){
                         ifstream desktop_file( strFile.c_str() );
                         if (desktop_file){
-                             string line, session_name = "", session_exec = "";
+							 string line, session_name = "", session_exec = "", session_desktop = "";
                              while (getline( desktop_file, line )) {
-                                 if (line.substr(0, 5) == "Name=") {
-                                     session_name = line.substr(5);
-                                     if (!session_exec.empty())
-                                         break;
-                                 } else
-                                     if (line.substr(0, 5) == "Exec=") {
-                                         session_exec = line.substr(5);
-                                         if (!session_name.empty())
-                                             break;
-                                     }
+								 if (line.substr(0, 5) == "Name=") {
+								     session_name = line.substr(5);
+								 } else
+								     if (line.substr(0, 5) == "Exec=") {
+								         session_exec = line.substr(5);
+								     } else if (line.substr(0, 13) == "DesktopNames=") {
+								         session_desktop = line.substr(13);
+								     }
                              }
                              desktop_file.close();
-                             pair<string,string> session(session_name,session_exec);
+							 SessionEntry session = {session_name, session_exec, session_desktop};
                              sessions.push_back(session);
                              cout << session_exec << " - " << session_name << endl;
                         }
@@ -358,5 +358,11 @@ void Cfg::fillSessionList(){
 
 pair<string,string> Cfg::nextSession() {
 	currentSession = (currentSession + 1) % sessions.size();
-	return sessions[currentSession];
+	currentSessionDesktop = sessions[currentSession].desktop;
+	return pair<string,string>(sessions[currentSession].name,
+								sessions[currentSession].exec);
+}
+
+string Cfg::getCurrentSessionDesktop() const {
+	return currentSessionDesktop;
 }

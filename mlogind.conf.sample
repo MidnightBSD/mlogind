@@ -46,10 +46,10 @@ login_cmd           exec /bin/sh - ~/.xinitrc %session
 # sessionstop_cmd	some command
 
 # DBus session bus launcher.
-# Set to "auto" to automatically find and use dbus-launch (recommended).
-# Set to a full path (e.g. /usr/local/bin/dbus-launch) to use a specific binary.
+# Set to "auto" to prefer dbus-run-session, falling back to dbus-launch.
+# Set to a full path to use a specific binary.
 # Set to empty to disable (if your xinitrc already handles dbus session setup).
-# dbus-launch establishes a per-user session bus and exports
+# The selected launcher establishes a per-user session bus and exports
 # DBUS_SESSION_BUS_ADDRESS, which is required by desktop environments such as
 # XFCE 4.20 for settings persistence via xfconf.
 dbus_launch         auto

@@ -35,6 +35,7 @@ public:
 	std::string& getOption(std::string option);
 	int getIntOption(std::string option);
 	std::string getWelcomeMessage();
+	std::string getCurrentSessionDesktop() const;
 
 	static int absolutepos(const std::string &position, int max, int width);
 	static int string2int(const char *string, bool *ok = 0);
@@ -49,7 +50,13 @@ private:
 
 private:
 	std::map<std::string,std::string> options;
-    std::vector<std::pair<std::string,std::string> > sessions;
+	struct SessionEntry {
+		std::string name;
+		std::string exec;
+		std::string desktop;
+	};
+	std::vector<SessionEntry> sessions;
+	std::string currentSessionDesktop;
 	int currentSession;
 	std::string error;
 };

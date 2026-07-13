@@ -1,12 +1,6 @@
-1.2.2
------
-- drawing problem on screens <= 1024x768 (implemented)
-- Don't start X server if theme's not found
-
-1.2.x
------
+Remaining
+---------
 - i18n
-- don't choose a non-existing theme in random selection
 - think about multi-line configuration:
     current_theme = t1, t2, t3
     current_theme = t4, t5
@@ -14,9 +8,6 @@
     current_theme = t1, t2, t3 \
 		    t4, t5
 - FreeBSD fixes
-
-2.0.x
------
 - restart X server on ctrl-alt-backspace
 - allow switching theme on the fly if a set is specified in mlogind.conf
 - text alignment, to allow to center texts of unknown length (e.g. %host)

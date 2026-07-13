@@ -806,11 +806,16 @@ string Panel::getSession() {
 	return session_exec;
 }
 
+string Panel::getSessionDesktop() {
+	return session_desktop;
+}
+
 /* choose next available session type */
 void Panel::SwitchSession() {
         pair<string,string> ses = cfg->nextSession();
         session_name = ses.first;
         session_exec = ses.second;
+		session_desktop = cfg->getCurrentSessionDesktop();
         if (session_name.size() > 0) {
                 ShowSession();
         }

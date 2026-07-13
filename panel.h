@@ -80,6 +80,7 @@ public:
 	void Error(const std::string &text);
 	void EventHandler(const FieldType &curfield);
 	std::string getSession();
+	std::string getSessionDesktop();
 	ActionType getAction(void) const;
 
 	void Reset(void);
@@ -189,6 +190,7 @@ private:
 	/* Session handling */
 	std::string session_name;
     std::string session_exec;
+	std::string session_desktop;
 };
 
 #endif /* _PANEL_H_ */
