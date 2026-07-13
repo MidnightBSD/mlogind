@@ -11,3 +11,15 @@ Remaining
 - restart X server on ctrl-alt-backspace
 - allow switching theme on the fly if a set is specified in mlogind.conf
 - text alignment, to allow to center texts of unknown length (e.g. %host)
+
+Security audit follow-up
+------------------------
+- review MidnightBSD-native session accounting and login records
+  (PAM, setlogin, and any utmpx/wtmp integration); systemd-logind
+  integration is not required for the primary target
+- document the security implications of the privileged sessionstart_cmd
+  and sessionstop_cmd hooks, or provide a safer execution model
+- review the optional screenshot_cmd hook, which runs with login-manager
+  privileges when enabled
+- review the Linux-specific mlogind.service packaging and provide a
+  MidnightBSD-native service definition if needed
