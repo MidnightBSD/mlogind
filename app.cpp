@@ -230,6 +230,20 @@ static bool ensure_runtime_dir(uid_t uid, string &runtime_dir, bool &created) {
 	return false;
 }
 
+static string configured_vt(Cfg *config, bool daemon) {
+	istringstream arguments(config->getOption("xserver_arguments"));
+	string argument;
+	while (arguments >> argument) {
+		if (argument.size() <= 2 || argument.compare(0, 2, "vt") != 0)
+			continue;
+		bool valid = false;
+		int vt = Cfg::string2int(argument.c_str() + 2, &valid);
+		if (valid && vt > 0)
+			return to_string(vt);
+	}
+	return daemon ? "9" : "";
+}
+
 #ifdef USE_PAM
 App::App(int argc, char** argv)
   : pam(conv, static_cast<void*>(&LoginPanel))
@@ -730,6 +744,7 @@ void App::Login() {
 	string::size_type desktop_separator = desktop.find(';');
 	if (desktop_separator != string::npos)
 		desktop.erase(desktop_separator);
+	string xdg_vtnr = configured_vt(cfg, daemonmode);
 
 	/* Setup the environment */
 	char* term = getenv("TERM");
@@ -757,6 +772,8 @@ void App::Login() {
 		pam.setenv("XDG_SESSION_TYPE", "x11");
 		pam.setenv("XDG_SESSION_CLASS", "user");
 		pam.setenv("XDG_SEAT", "seat0");
+		if (!xdg_vtnr.empty())
+			pam.setenv("XDG_VTNR", xdg_vtnr.c_str());
 		if (!current_desktop.empty())
 			pam.setenv("XDG_CURRENT_DESKTOP", current_desktop.c_str());
 		if (!desktop.empty())
@@ -829,6 +846,8 @@ void App::Login() {
 		child_env[n++]=StrConcat("XDG_SESSION_TYPE=x11", "");
 		child_env[n++]=StrConcat("XDG_SESSION_CLASS=user", "");
 		child_env[n++]=StrConcat("XDG_SEAT=seat0", "");
+		if (!xdg_vtnr.empty())
+			AddToEnv(&child_env, "XDG_VTNR", xdg_vtnr.c_str());
 # ifdef USE_CONSOLEKIT
 		child_env[n++]=StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
 # endif /* USE_CONSOLEKIT */
