@@ -52,7 +52,11 @@ static const char* LOGIN_CAP_ENVS[] = {
 
 int conv(int num_msg, const struct pam_message **msg,
 		 struct pam_response **resp, void *appdata_ptr){
+	if (num_msg <= 0 || resp == NULL)
+		return PAM_BUF_ERR;
 	*resp = static_cast<pam_response*>(calloc(num_msg, sizeof(pam_response)));
+	if (*resp == NULL)
+		return PAM_BUF_ERR;
 	Panel* panel = *static_cast<Panel**>(appdata_ptr);
 	int result = PAM_SUCCESS;
 	for (int i=0; i<num_msg; i++){
@@ -143,9 +147,15 @@ static void AddToEnv(char*** curr_env, const char *name, const char *value) {
 	for (n = 0; (*curr_env)[n] != NULL; n++) ;
 	n++;
 	char** new_env = static_cast<char**>(malloc(sizeof(char*) * (n + 1)));
+	if (new_env == NULL)
+		return;
 	memcpy(new_env, *curr_env, sizeof(char*) * n);
 	size_t entry_len = strlen(name) + strlen(value) + 2;
 	char* entry = static_cast<char*>(malloc(entry_len));
+	if (entry == NULL) {
+		free(new_env);
+		return;
+	}
 	strlcpy(entry, name, entry_len);
 	strlcat(entry, "=", entry_len);
 	strlcat(entry, value, entry_len);
@@ -665,6 +675,8 @@ void App::Login() {
 		/* Get a copy of the environment and close the child's copy */
 		/* of the PAM-handle. */
 		char** child_env = pam.getenvlist();
+		if (child_env == NULL)
+			_exit(ERR_EXIT);
 
 # ifdef USE_CONSOLEKIT
 		char** old_env = child_env;
@@ -688,6 +700,8 @@ void App::Login() {
 		const int Num_Of_Variables = 11; /* Number of env. variables + 1 */
 # endif /* USE_CONSOLEKIT */
 		char** child_env = static_cast<char**>(malloc(sizeof(char*)*Num_Of_Variables));
+		if (child_env == NULL)
+			_exit(ERR_EXIT);
 		int n = 0;
 		if(term) child_env[n++]=StrConcat("TERM=", term);
 		child_env[n++]=StrConcat("HOME=", pw->pw_dir);

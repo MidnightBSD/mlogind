@@ -60,6 +60,7 @@ read_png(const char *filename, int *width, int *height, unsigned char **rgb,
 		png_destroy_read_struct(&png_ptr,
 						(png_infopp)NULL,
 						(png_infopp)NULL);
+		goto file_close;
 	}
 
 #if PNG_LIBPNG_VER_MAJOR >= 1 && PNG_LIBPNG_VER_MINOR >= 4
@@ -111,7 +112,7 @@ read_png(const char *filename, int *width, int *height, unsigned char **rgb,
 	/* use 1 byte per pixel */
 	png_set_packing(png_ptr);
 
-	row_pointers = malloc(*height * sizeof(png_bytep));
+	row_pointers = calloc(*height, sizeof(png_bytep));
 	if (row_pointers == NULL) {
 		fprintf(stderr, "Can't allocate memory for PNG file.\n");
 		goto png_destroy;
@@ -119,7 +120,7 @@ read_png(const char *filename, int *width, int *height, unsigned char **rgb,
 
 	for (i = 0; i < *height; i++) {
 		row_pointers[i] = malloc(4 * *width);
-		if (row_pointers == NULL) {
+		if (row_pointers[i] == NULL) {
 			fprintf(stderr,
 				"Can't allocate memory for PNG line.\n");
 			goto rows_free;
@@ -166,6 +167,12 @@ rows_free:
 	free(row_pointers);
 
 png_destroy:
+	if (!ret) {
+		free(rgb[0]);
+		rgb[0] = NULL;
+		free(alpha[0]);
+		alpha[0] = NULL;
+	}
 	png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
 
 file_close:

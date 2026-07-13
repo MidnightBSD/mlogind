@@ -54,6 +54,9 @@ rgb_data(NULL), png_alpha(NULL), quality_(80) {
 	} else {
 		png_alpha = static_cast<unsigned char*>(malloc(area));
 		if (!png_alpha) {
+			free(rgb_data);
+			rgb_data = NULL;
+			width = height = area = 0;
 			return;
 		}
 		memcpy(png_alpha, alpha, area);
@@ -75,6 +78,15 @@ Image::Read(const char *filename) {
 	file = fopen(filename, "rb");
 	if (file == NULL)
 		return(false);
+
+	/* A failed decode must not leave buffers from a previous image behind. */
+	free(rgb_data);
+	free(png_alpha);
+	rgb_data = NULL;
+	png_alpha = NULL;
+	width = 0;
+	height = 0;
+	area = 0;
 
 	/* see what kind of file we have */
 
@@ -171,9 +183,16 @@ Image::Resize(const int w, const int h) {
 	int new_area = w * h;
 
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * new_area));
+	if (new_rgb == NULL)
+		return;
 	unsigned char *new_alpha = NULL;
-	if (png_alpha != NULL)
+	if (png_alpha != NULL) {
 		new_alpha = static_cast<unsigned char*>(malloc(new_area));
+		if (new_alpha == NULL) {
+			free(new_rgb);
+			return;
+		}
+	}
 
 	const double scale_x = ((double) w) / width;
 	const double scale_y = ((double) h) / height;
@@ -284,6 +303,8 @@ void Image::Merge(Image* background, const int x, const int y) {
 
 	double tmp;
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * width * height));
+	if (new_rgb == NULL)
+		return;
 	memset(new_rgb, 0, 3 * width * height);
 	const unsigned char *bg_rgb = background->getRGBData();
 
@@ -334,6 +355,8 @@ void Image::Merge_non_crop(Image* background, const int x, const int y)
 
 	double tmp;
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * bg_w * bg_h));
+	if (new_rgb == NULL)
+		return;
 	const unsigned char *bg_rgb = background->getRGBData();
 	int pnl_pos = 0;
 	int bg_pos = 0;
@@ -392,6 +415,8 @@ void Image::Tile(const int w, const int h) {
 	int newheight=ny*height;
 
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * newwidth * newheight));
+	if (new_rgb == NULL)
+		return;
 	memset(new_rgb, 0, 3 * width * height * nx * ny);
 
 	int ipos = 0;
@@ -433,10 +458,16 @@ void Image::Crop(const int x, const int y, const int w, const int h) {
 	int x2 = x + w;
 	int y2 = y + h;
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
+	if (new_rgb == NULL)
+		return;
 	memset(new_rgb, 0, 3 * w * h);
 	unsigned char *new_alpha = NULL;
 	if (png_alpha != NULL) {
 		new_alpha = static_cast<unsigned char*>(malloc(w * h));
+		if (new_alpha == NULL) {
+			free(new_rgb);
+			return;
+		}
 		memset(new_alpha, 0, w * h);
 	}
 
@@ -483,6 +514,8 @@ void Image::Center(const int w, const int h, const char *hex) {
 	unsigned long b = packed_rgb & 0xff;
 
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
+	if (new_rgb == NULL)
+		return;
 	memset(new_rgb, 0, 3 * w * h);
 
 	int x = (w - width) / 2;
@@ -563,6 +596,8 @@ void Image::Plain(const int w, const int h, const char *hex) {
 	unsigned long b = packed_rgb & 0xff;
 
 	unsigned char *new_rgb = static_cast<unsigned char*>(malloc(3 * w * h));
+	if (new_rgb == NULL)
+		return;
 	memset(new_rgb, 0, 3 * w * h);
 
 	area = w * h;
@@ -862,6 +897,7 @@ Image::readPng(const char *filename, int *width, int *height,
 	if (!info_ptr) {
 		png_destroy_read_struct(&png_ptr, (png_infopp) NULL,
 								(png_infopp) NULL);
+		goto file_close;
 	}
 
 #if PNG_LIBPNG_VER_MAJOR >= 1 && PNG_LIBPNG_VER_MINOR >= 4
@@ -921,7 +957,7 @@ Image::readPng(const char *filename, int *width, int *height,
 	/* use 1 byte per pixel */
 	png_set_packing(png_ptr);
 
-	row_pointers = static_cast<png_byte**>(malloc(*height * sizeof(png_bytep)));
+	row_pointers = static_cast<png_byte**>(calloc(*height, sizeof(png_bytep)));
 	if (row_pointers == NULL) {
 		logStream << APPNAME << ": Can't allocate memory for PNG file." << endl;
 		goto png_destroy;
@@ -929,7 +965,7 @@ Image::readPng(const char *filename, int *width, int *height,
 
 	for (i = 0; i < *height; i++) {
 		row_pointers[i] = static_cast<png_byte*>(malloc(4 * *width));
-		if (row_pointers == NULL) {
+		if (row_pointers[i] == NULL) {
 			logStream << APPNAME << ": Can't allocate memory for PNG file."
 					  << endl;
 			goto rows_free;
@@ -975,6 +1011,12 @@ rows_free:
 	free(row_pointers);
 
 png_destroy:
+	if (!ret) {
+		free(rgb[0]);
+		rgb[0] = NULL;
+		free(alpha[0]);
+		alpha[0] = NULL;
+	}
 	png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
 
 file_close:
@@ -1113,4 +1155,3 @@ Image::readSvg(const char *filename, int *w, int *h,
     return 0;
 #endif
 }
-
