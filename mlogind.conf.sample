@@ -63,8 +63,9 @@ dbus_launch         auto
 # mlogind reads xsesion from this directory, and be able to select.
 sessiondir             %%LOCALBASE%%/share/xsessions/
 
-# Executed when pressing F11 (requires imagemagick)
-screenshot_cmd      import -window root /mlogind.png
+# Optional screenshot capture when pressing F11 (requires ImageMagick).
+# Disabled by default; uncomment and customize to enable it.
+#screenshot_cmd      import -window root /mlogind.png
 
 # welcome message. Available variables: %host, %domain
 welcome_msg         Welcome to %host

@@ -592,8 +592,9 @@ bool Panel::OnKeyPress(XEvent& event) {
 			return true;
 
 		case XK_F11:
-			/* Take a screenshot */
-			Util::run_command(cfg->getOption("screenshot_cmd"));
+			/* Take a screenshot when explicitly configured. */
+			if (!cfg->getOption("screenshot_cmd").empty())
+				Util::run_command(cfg->getOption("screenshot_cmd"));
 			return true;
 
 		case XK_Return:
