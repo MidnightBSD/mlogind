@@ -81,6 +81,9 @@ int conv(int num_msg, const struct pam_message **msg,
 					case Panel::Login:
 						(*resp)[i].resp=strdup(panel->GetName().c_str());
 						break;
+					case Panel::Restart:
+						result=PAM_CONV_ERR;
+						break;
 					default:
 						break;
 				}
@@ -91,6 +94,7 @@ int conv(int num_msg, const struct pam_message **msg,
 				switch(panel->getAction()){
 					case Panel::Console:
 					case Panel::Exit:
+					case Panel::Restart:
 						/* We should leave now! */
 						result=PAM_CONV_ERR;
 						break;
@@ -597,6 +601,9 @@ void App::Run() {
 			case Panel::Exit:
 				Exit();
 				break;
+			case Panel::Restart:
+				RestartServer();
+				break;
 			default:
 				break;
 		}
@@ -615,6 +622,7 @@ bool App::AuthenticateUser(bool focuspass){
 		switch(LoginPanel->getAction()){
 			case Panel::Exit:
 			case Panel::Console:
+			case Panel::Restart:
 				return true; /* <--- This is simply fake! */
 			default:
 				break;
@@ -635,6 +643,7 @@ bool App::AuthenticateUser(bool focuspass){
 		switch(LoginPanel->getAction()){
 			case Panel::Exit:
 			case Panel::Console:
+			case Panel::Restart:
 				logStream << APPNAME << ": Got a special command (" << LoginPanel->GetName() << ")" << endl;
 				return true; /* <--- This is simply fake! */
 			default:
@@ -642,6 +651,8 @@ bool App::AuthenticateUser(bool focuspass){
 		}
 	}
 	LoginPanel->EventHandler(Panel::Get_Passwd);
+	if (LoginPanel->getAction() == Panel::Restart)
+		return true;
 
 	char *encrypted, *correct;
 	struct passwd *pw;

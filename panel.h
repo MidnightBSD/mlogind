@@ -56,7 +56,8 @@ public:
 		Reboot,
 		Halt,
 		Exit,
-		Suspend
+		Suspend,
+		Restart
 	};
 
 	enum FieldType {

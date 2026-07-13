@@ -586,6 +586,12 @@ bool Panel::OnKeyPress(XEvent& event) {
 	string formerString = "";
 
 	XLookupString(&event.xkey, &ascii, 1, &keysym, &compstatus);
+	if (keysym == XK_BackSpace &&
+		(reinterpret_cast<XKeyEvent&>(event).state & ControlMask) != 0 &&
+		(reinterpret_cast<XKeyEvent&>(event).state & Mod1Mask) != 0) {
+		action = Restart;
+		return false;
+	}
 	switch(keysym){
 		case XK_F1:
 			SwitchSession();
