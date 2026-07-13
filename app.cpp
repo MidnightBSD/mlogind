@@ -11,6 +11,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef HAVE_PROCCTL
+#include <sys/procctl.h>
+#endif
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -685,6 +688,7 @@ void App::HideCursor() {
 void App::Login() {
 	struct passwd *pw;
 	pid_t pid;
+	bool session_reaper = false;
 
 #ifdef USE_PAM
 	try{
@@ -796,8 +800,40 @@ void App::Login() {
 	}
 #endif
 
+	/*
+	 * On MidnightBSD/FreeBSD, retain orphaned descendants of the session
+	 * under mlogind.  This covers desktop processes that daemonize by calling
+	 * setsid(), which cannot be reached through the session process group.
+	 * Existing children keep their current reaper, so the X server is not
+	 * included in this subtree.
+	 */
+#ifdef HAVE_PROCCTL
+	if (procctl(P_PID, getpid(), PROC_REAP_ACQUIRE, NULL) == 0)
+		session_reaper = true;
+	else if (errno != ENOSYS && errno != EINVAL)
+		logStream << APPNAME << ": procctl reaper setup failed: "
+			  << strerror(errno) << endl;
+#endif
+
 	/* Create new process */
 	pid = fork();
+	if (pid < 0) {
+		logStream << APPNAME << ": fork failed: " << strerror(errno) << endl;
+#ifdef HAVE_PROCCTL
+		if (session_reaper)
+			procctl(P_PID, getpid(), PROC_REAP_RELEASE, NULL);
+#endif
+#ifdef USE_PAM
+		try {
+			pam.close_session();
+			pam.end();
+		} catch (PAM::Exception&) {
+		}
+#endif
+		if (runtime_dir_created)
+			rmdir(runtime_dir.c_str());
+		return;
+	}
 	if(pid == 0) {
 #ifdef USE_PAM
 		/* Get a copy of the environment and close the child's copy */
@@ -992,6 +1028,23 @@ void App::Login() {
 	/* Send TERM signal to clientgroup, if error send KILL */
 	if(killpg(pid, SIGTERM))
 	killpg(pid, SIGKILL);
+
+#ifdef HAVE_PROCCTL
+	if (session_reaper) {
+		struct procctl_reaper_kill reap = {};
+		reap.rk_flags = REAPER_KILL_SUBTREE;
+		reap.rk_subtree = pid;
+		reap.rk_sig = SIGHUP;
+		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+		reap.rk_sig = SIGTERM;
+		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+		reap.rk_sig = SIGKILL;
+		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+		if (procctl(P_PID, getpid(), PROC_REAP_RELEASE, NULL) != 0)
+			logStream << APPNAME << ": procctl reaper release failed: "
+				  << strerror(errno) << endl;
+	}
+#endif
 	if (runtime_dir_created && rmdir(runtime_dir.c_str()) != 0 && errno != ENOTEMPTY)
 		logStream << APPNAME << ": could not remove XDG_RUNTIME_DIR "
 			  << runtime_dir << ": " << strerror(errno) << endl;
