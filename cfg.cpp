@@ -35,7 +35,7 @@ Cfg::Cfg()
 	options.insert(option("numlock",""));
 	options.insert(option("daemon",""));
 	options.insert(option("xauth_path","/usr/bin/xauth"));
-	options.insert(option("login_cmd","exec /bin/bash -login ~/.xinitrc %session"));
+	options.insert(option("login_cmd","exec /bin/sh - ~/.xinitrc %session"));
 	options.insert(option("halt_cmd","/sbin/shutdown -h now"));
 	options.insert(option("reboot_cmd","/sbin/shutdown -r now"));
 	options.insert(option("suspend_cmd",""));
