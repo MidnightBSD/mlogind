@@ -31,13 +31,21 @@ namespace Ck {
 	const char * get_x11_device(const std::string &display);
 	dbus_bool_t ck_connector_open_graphic_session(const std::string &display,
 		uid_t uid);
+	void release();
 	public:
+	bool is_open() const;
 	const char * get_xdg_session_cookie();
+	std::string get_runtime_dir();
 	void open_session(const std::string &display, uid_t uid);
 	void close_session();
 
 	Session();
 	~Session();
+
+	private:
+	/* The connector is owned by this object: disable copying */
+	Session(const Session&);
+	Session& operator=(const Session&);
 	};
 }
 

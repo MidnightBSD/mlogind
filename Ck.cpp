@@ -54,14 +54,21 @@ namespace Ck {
 	if(!xdisplay)
 	  throw Exception(__func__, "cannot open display");
 
+	/* Close this private connection on every return and throw path */
+	struct DisplayCloser {
+	  Display *dpy;
+	  ~DisplayCloser() { XCloseDisplay(dpy); }
+	} closer = { xdisplay };
+
 	Window root;
 	Atom xfree86_vt_atom;
 	Atom return_type_atom;
 	int return_format;
 	unsigned long return_count;
 	unsigned long bytes_left;
-	unsigned char *return_value;
+	unsigned char *return_value = NULL;
 	long vt;
+	const char *problem = NULL;
 
 	xfree86_vt_atom = XInternAtom(xdisplay, "XFree86_VT", true);
 
@@ -78,19 +85,21 @@ namespace Ck {
 	  throw Exception(__func__, "cannot get root window property");
 
 	if(return_type_atom != XA_INTEGER)
-	  throw Exception(__func__, "bad atom type");
+	  problem = "bad atom type";
+	else if(return_format != 32)
+	  problem = "invalid return format";
+	else if(return_count != 1)
+	  problem = "invalid count";
+	else if(bytes_left != 0)
+	  problem = "invalid bytes left";
+	else if(!return_value)
+	  problem = "null return value from XGetWindowProperty";
 
-	if(return_format != 32)
-	  throw Exception(__func__, "invalid return format");
-
-	if(return_count != 1)
-	  throw Exception(__func__, "invalid count");
-
-	if(bytes_left != 0)
-	  throw Exception(__func__, "invalid bytes left");
-
-	if(!return_value)
-	  throw Exception(__func__, "null return value from XGetWindowProperty");
+	if(problem) {
+	  if(return_value)
+		XFree(return_value);
+	  throw Exception(__func__, problem);
+	}
 
 	vt = *((long *)return_value);
 	XFree(return_value);
@@ -100,36 +109,86 @@ namespace Ck {
 	return device;
   }
 
+  /* Drop the connector, which also closes its private system bus
+   * connection.  The session is considered open only while ckc is set. */
+  void Session::release()
+  {
+	if(ckc) {
+	  ck_connector_unref(ckc);
+	  ckc = nullptr;
+	}
+  }
+
   void Session::open_session(const std::string &display, uid_t uid)
   {
+	release();
 	ckc = ck_connector_new();
 
 	if(!ckc)
 	  throw Exception(__func__, "error setting up connection to ConsoleKit");
 
-	if(!ck_connector_open_graphic_session(display, uid)) {
-	  if(dbus_error_is_set(&error))
-		throw Exception(__func__, error.message);
-	  else
-		throw Exception(__func__, "cannot open ConsoleKit session: OOM, DBus system bus "
-						" not available or insufficient privileges");
+	dbus_bool_t opened;
+	try {
+	  opened = ck_connector_open_graphic_session(display, uid);
 	}
+	catch(Exception &) {
+	  release();
+	  throw;
+	}
+
+	if(!opened) {
+	  std::string errstr = dbus_error_is_set(&error) ? error.message :
+		"cannot open ConsoleKit session: OOM, DBus system bus "
+		" not available or insufficient privileges";
+	  dbus_error_free(&error);
+	  release();
+	  throw Exception(__func__, errstr);
+	}
+  }
+
+  bool Session::is_open() const
+  {
+	return ckc != nullptr;
   }
 
   const char * Session::get_xdg_session_cookie()
   {
-	return ck_connector_get_cookie(ckc);
+	return ckc ? ck_connector_get_cookie(ckc) : NULL;
+  }
+
+  /* Return a copy of the XDG runtime directory ConsoleKit manages for the
+   * session, or an empty string if it does not provide one. */
+  std::string Session::get_runtime_dir()
+  {
+	if(!ckc)
+	  return "";
+
+	DBusError local_error;
+	dbus_error_init(&local_error);
+	const char *runtime_dir = ck_connector_get_runtime_dir(ckc, &local_error);
+	std::string result = runtime_dir ? runtime_dir : "";
+	std::string errstr = dbus_error_is_set(&local_error) ? local_error.message : "";
+	dbus_error_free(&local_error);
+
+	if(!runtime_dir && !errstr.empty())
+	  throw Exception(__func__, errstr);
+	return result;
   }
 
   void Session::close_session()
   {
+	if(!ckc)
+	  return;
+
 	if(!ck_connector_close_session(ckc, &error)) {
-	  if(dbus_error_is_set(&error))
-		throw Exception(__func__, error.message);
-	  else
-		throw Exception(__func__, "cannot close ConsoleKit session: OOM, DBus system bus "
-						" not available or insufficient privileges");
+	  std::string errstr = dbus_error_is_set(&error) ? error.message :
+		"cannot close ConsoleKit session: OOM, DBus system bus "
+		" not available or insufficient privileges";
+	  dbus_error_free(&error);
+	  release();
+	  throw Exception(__func__, errstr);
 	}
+	release();
   }
 
   Session::Session()
@@ -140,6 +199,7 @@ namespace Ck {
 
   Session::~Session()
   {
+	release();
 	dbus_error_free(&error);
   }
 }
