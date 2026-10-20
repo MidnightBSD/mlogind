@@ -11,11 +11,14 @@
 
 #include "app.h"
 #include "const.h"
+#include "util.h"
 
 App* LoginApp = 0;
 
 int main(int argc, char** argv)
 {
+	/* UTF-8 keyboard input; see Panel::OnKeyPress */
+	Util::set_utf8_ctype();
 	LoginApp = new App(argc, argv);
 	LoginApp->Run();
 	return 0;

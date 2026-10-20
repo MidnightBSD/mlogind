@@ -97,6 +97,8 @@ private:
 	void Cursor(int visible);
 	unsigned long GetColor(const char *colorname);
 	void OnExpose(void);
+	void CreateInputContext();
+	void DestroyInputContext();
 	void EraseLastChar(std::string &formerString);
 	bool OnKeyPress(XEvent& event);
 	void ShowText();
@@ -156,6 +158,10 @@ private:
 
 	ActionType action;
 	FieldType field;
+
+	/* Keyboard input method; text is read as UTF-8 */
+	XIM inputMethod;
+	XIC inputContext;
 	//Pixmap   background;
 	
 	/* Username/Password */

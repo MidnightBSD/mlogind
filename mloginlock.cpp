@@ -98,6 +98,9 @@ static bool secure_command_config(const char *path) {
 }
 
 int main(int argc, char **argv) {
+	/* UTF-8 keyboard input; see Panel::OnKeyPress */
+	Util::set_utf8_ctype();
+
 	if((argc == 2) && !strcmp("-v", argv[1]))
 		die(APPNAME " " VERSION ", © 2010-2012 Joel Burget\n");
 	else if(argc != 1)

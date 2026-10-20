@@ -234,6 +234,16 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 	welcome_message = cfg->getWelcomeMessage();
 	intro_message = cfg->getOption("intro_msg");
 
+	/* Read keyboard text as UTF-8 through Xlib's built-in input method,
+	 * which also handles dead keys and compose sequences.  "@im=none"
+	 * keeps the greeter from connecting to a user's input method server. */
+	inputMethod = NULL;
+	inputContext = NULL;
+	if (XSupportsLocale() && XSetLocaleModifiers("@im=none") != NULL)
+		inputMethod = XOpenIM(Dpy, NULL, NULL, NULL);
+	if (mode == Mode_Lock)
+		CreateInputContext();
+
 	if (mode == Mode_Lock) {
 		const char *user_env = getenv("USER");
 		if (user_env != NULL) {
@@ -246,6 +256,9 @@ Panel::Panel(Display* dpy, int scr, Window root, Cfg* config,
 }
 
 Panel::~Panel() {
+	DestroyInputContext();
+	if (inputMethod)
+		XCloseIM(inputMethod);
 	XftColorFree(Dpy, visual, colormap, &inputcolor);
 	XftColorFree(Dpy, visual, colormap, &inputshadowcolor);
 	XftColorFree(Dpy, visual, colormap, &welcomecolor);
@@ -285,8 +298,12 @@ void Panel::OpenPanel() {
 							  image->Height(),
 							  0, GetColor("white"), GetColor("white"));
 
-	/* Events */
-	XSelectInput(Dpy, Win, ExposureMask | KeyPressMask);
+	/* Events, plus any the input method needs to filter */
+	CreateInputContext();
+	long im_events = 0;
+	if (inputContext)
+		XGetICValues(inputContext, XNFilterEvents, &im_events, NULL);
+	XSelectInput(Dpy, Win, ExposureMask | KeyPressMask | im_events);
 
 	/* Set background */
 	XSetWindowBackgroundPixmap(Dpy, Win, PanelPixmap);
@@ -303,9 +320,28 @@ void Panel::OpenPanel() {
 
 void Panel::ClosePanel() {
 	XUngrabKeyboard(Dpy, CurrentTime);
+	DestroyInputContext();
 	XUnmapWindow(Dpy, Win);
 	XDestroyWindow(Dpy, Win);
 	XFlush(Dpy);
+}
+
+void Panel::CreateInputContext() {
+	DestroyInputContext();
+	if (!inputMethod)
+		return;
+	inputContext = XCreateIC(inputMethod,
+		XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+		XNClientWindow, Win, XNFocusWindow, Win, NULL);
+	if (inputContext)
+		XSetICFocus(inputContext);
+}
+
+void Panel::DestroyInputContext() {
+	if (inputContext) {
+		XDestroyIC(inputContext);
+		inputContext = NULL;
+	}
 }
 
 void Panel::ClearPanel() {
@@ -332,7 +368,7 @@ void Panel::WrongPassword(int timeout) {
 
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
 		visual, colormap);
-		XftTextExtents8(Dpy, msgfont, reinterpret_cast<const XftChar8*>(message.c_str()),
+		XftTextExtentsUtf8(Dpy, msgfont, reinterpret_cast<const XftChar8*>(message.c_str()),
 		message.length(), &extents);
 
 	string cfgX = cfg->getOption("passwd_feedback_x");
@@ -373,7 +409,7 @@ void Panel::Message(const string& text) {
 		draw = XftDrawCreate(Dpy, Root,
 			visual, colormap);
 
-	XftTextExtents8(Dpy, msgfont,
+	XftTextExtentsUtf8(Dpy, msgfont,
 		reinterpret_cast<const XftChar8*>(text.c_str()),
 					text.length(), &extents);
 	cfgX = cfg->getOption("msg_x");
@@ -451,10 +487,10 @@ void Panel::Cursor(int visible) {
 	}
 
 	XGlyphInfo extents;
-	XftTextExtents8(Dpy, font, reinterpret_cast<const XftChar8*>(txth), strlen(txth), &extents);
+	XftTextExtentsUtf8(Dpy, font, reinterpret_cast<const XftChar8*>(txth), strlen(txth), &extents);
 	cheight = extents.height;
 	y2 = yy - extents.y + extents.height;
-	XftTextExtents8(Dpy, font, reinterpret_cast<const XftChar8*>(text), strlen(text), &extents);
+	XftTextExtentsUtf8(Dpy, font, reinterpret_cast<const XftChar8*>(text), strlen(text), &extents);
 	xx += extents.width;
 
 	if(visible == SHOW) {
@@ -495,6 +531,8 @@ void Panel::EventHandler(const Panel::FieldType& curfield) {
 		if (XPending(Dpy) || poll(&x11_pfd, 1, 1000) > 0) {
 			while(XPending(Dpy)) {
 				XNextEvent(Dpy, &event);
+				if (XFilterEvent(&event, None))
+					continue; /* consumed by the input method (dead key, compose) */
 				switch(event.type) {
 					case Expose:
 						OnExpose();
@@ -562,14 +600,15 @@ void Panel::EraseLastChar(string &formerString) {
 	case GET_NAME:
 		if (! NameBuffer.empty()) {
 			formerString=NameBuffer;
-			NameBuffer.erase(--NameBuffer.end());
+			Util::utf8_erase_last(NameBuffer);
 		}
 		break;
 
 	case GET_PASSWD:
 		if (!PasswdBuffer.empty()) {
 			formerString=HiddenPasswdBuffer;
-			PasswdBuffer.erase(--PasswdBuffer.end());
+			/* One '*' per character, so both shrink by one character */
+			Util::utf8_erase_last(PasswdBuffer);
 			HiddenPasswdBuffer.erase(--HiddenPasswdBuffer.end());
 		}
 		break;
@@ -577,15 +616,32 @@ void Panel::EraseLastChar(string &formerString) {
 }
 
 bool Panel::OnKeyPress(XEvent& event) {
-	char ascii;
-	KeySym keysym;
-	XComposeStatus compstatus;
+	char buffer[64];
+	KeySym keysym = NoSymbol;
+	int length;
+	string chars;
+	size_t char_count = 0;
 	int xx = 0;
 	int yy = 0;
 	string text;
 	string formerString = "";
 
-	XLookupString(&event.xkey, &ascii, 1, &keysym, &compstatus);
+	if (inputContext) {
+		Status status;
+		length = Xutf8LookupString(inputContext, &event.xkey, buffer,
+			sizeof(buffer), &keysym, &status);
+		if (status != XLookupChars && status != XLookupBoth)
+			length = 0; /* includes XBufferOverflow */
+		if (status != XLookupKeySym && status != XLookupBoth)
+			keysym = NoSymbol;
+		chars.assign(buffer, length > 0 ? length : 0);
+	} else {
+		/* No input method: XLookupString yields ISO 8859-1 */
+		XComposeStatus compstatus;
+		length = XLookupString(&event.xkey, buffer, sizeof(buffer),
+			&keysym, &compstatus);
+		chars = Util::latin1_to_utf8(string(buffer, length > 0 ? length : 0));
+	}
 	if (keysym == XK_BackSpace &&
 		(reinterpret_cast<XKeyEvent&>(event).state & ControlMask) != 0 &&
 		(reinterpret_cast<XKeyEvent&>(event).state & Mod1Mask) != 0) {
@@ -669,19 +725,21 @@ bool Panel::OnKeyPress(XEvent& event) {
 			/* Deliberate fall-through */
 
 		default:
-			if (isprint(ascii) && (keysym < XK_Shift_L || keysym > XK_Hyper_R)){
+			if (Util::utf8_printable(chars, char_count) &&
+				(keysym < XK_Shift_L || keysym > XK_Hyper_R)){
+				/* Limits are in bytes; never store part of a character */
 				switch(field) {
 					case GET_NAME:
 						formerString=NameBuffer;
-						if (NameBuffer.length() < INPUT_MAXLENGTH_NAME-1){
-							NameBuffer.append(&ascii,1);
+						if (NameBuffer.length() + chars.length() < INPUT_MAXLENGTH_NAME){
+							NameBuffer.append(chars);
 						};
 						break;
 					case GET_PASSWD:
 						formerString=HiddenPasswdBuffer;
-						if (PasswdBuffer.length() < INPUT_MAXLENGTH_PASSWD-1){
-							PasswdBuffer.append(&ascii,1);
-							HiddenPasswdBuffer.append("*");
+						if (PasswdBuffer.length() + chars.length() < INPUT_MAXLENGTH_PASSWD){
+							PasswdBuffer.append(chars);
+							HiddenPasswdBuffer.append(char_count, '*');
 						};
 					break;
 				};
@@ -712,11 +770,11 @@ bool Panel::OnKeyPress(XEvent& event) {
 
 	if (!formerString.empty()){
 		const char* txth = "Wj"; /* get proper maximum height ? */
-		XftTextExtents8(Dpy, font,
+		XftTextExtentsUtf8(Dpy, font,
 				reinterpret_cast<const XftChar8*>(txth), strlen(txth), &extents);
 		int maxHeight = extents.height;
 
-		XftTextExtents8(Dpy, font,
+		XftTextExtentsUtf8(Dpy, font,
 				reinterpret_cast<const XftChar8*>(formerString.c_str()),
 						formerString.length(), &extents);
 		int maxLength = extents.width;
@@ -754,7 +812,7 @@ void Panel::ShowText(){
 	XftDraw *draw = XftDrawCreate(Dpy, Win,
 		  visual, colormap);
 	/* welcome message */
-	XftTextExtents8(Dpy, welcomefont, reinterpret_cast<const XftChar8*>(welcome_message.c_str()),
+	XftTextExtentsUtf8(Dpy, welcomefont, reinterpret_cast<const XftChar8*>(welcome_message.c_str()),
 					strlen(welcome_message.c_str()), &extents);
 	cfgX = cfg->getOption("welcome_x");
 	cfgY = cfg->getOption("welcome_y");
@@ -774,7 +832,7 @@ void Panel::ShowText(){
 	string msg;
 	if ((!singleInputMode|| field == Get_Passwd) && mode == Mode_DM) {
 		msg = cfg->getOption("password_msg");
-		XftTextExtents8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
+		XftTextExtentsUtf8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
 						strlen(msg.c_str()), &extents);
 		cfgX = cfg->getOption("password_x");
 		cfgY = cfg->getOption("password_y");
@@ -790,7 +848,7 @@ void Panel::ShowText(){
 
 	if (!singleInputMode|| field == Get_Name) {
 		msg = cfg->getOption("username_msg");
-		XftTextExtents8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
+		XftTextExtentsUtf8(Dpy, enterfont, reinterpret_cast<const XftChar8*>(msg.c_str()),
 						strlen(msg.c_str()), &extents);
 		cfgX = cfg->getOption("username_x");
 		cfgY = cfg->getOption("username_y");
@@ -843,7 +901,7 @@ void Panel::ShowSession() {
 
 	XftDraw *draw = XftDrawCreate(Dpy, Root,
 								  visual, colormap);
-	XftTextExtents8(Dpy, sessionfont, reinterpret_cast<const XftChar8*>(currsession.c_str()),
+	XftTextExtentsUtf8(Dpy, sessionfont, reinterpret_cast<const XftChar8*>(currsession.c_str()),
 					currsession.length(), &extents);
 	msg_x = cfg->getOption("session_x");
 	msg_y = cfg->getOption("session_y");
@@ -873,7 +931,7 @@ void Panel::ShowClock(XftDraw *draw) {
 	string clock_str(buffer);
 
 	XGlyphInfo extents;
-	XftTextExtents8(Dpy, clockfont, reinterpret_cast<const XftChar8*>(clock_str.c_str()),
+	XftTextExtentsUtf8(Dpy, clockfont, reinterpret_cast<const XftChar8*>(clock_str.c_str()),
 					clock_str.length(), &extents);
 
 	int x, y;

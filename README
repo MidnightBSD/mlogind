@@ -17,6 +17,9 @@ INTRODUCTION
     - PNG / JPEG support for backgrounds
     - XFT / freetype support
     - Double or single (GDM-style) inputbox support
+    - UTF-8 user name and password entry, including dead keys and
+      compose sequences (Xlib built-in input method; the greeter uses
+      the environment's UTF-8 LC_CTYPE or falls back to C.UTF-8)
     - CMake build procedure
 
 INSTALLATION
