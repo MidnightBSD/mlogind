@@ -13,6 +13,9 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <langinfo.h>
+#include <locale.h>
 
 #include <sstream>
 #include <vector>
@@ -44,6 +47,86 @@ std::string Util::shell_escape(const std::string &s) {
 	}
 	escaped += "'";
 	return escaped;
+}
+
+static bool ctype_is_utf8() {
+	const char *codeset = nl_langinfo(CODESET);
+	return codeset != NULL && strcmp(codeset, "UTF-8") == 0;
+}
+
+bool Util::set_utf8_ctype() {
+	if (setlocale(LC_CTYPE, "") != NULL && ctype_is_utf8())
+		return true;
+	return setlocale(LC_CTYPE, "C.UTF-8") != NULL && ctype_is_utf8();
+}
+
+bool Util::utf8_printable(const std::string &s, size_t &chars) {
+	static const unsigned long min_value[] = { 0, 0, 0x80, 0x800, 0x10000 };
+	size_t i = 0;
+
+	chars = 0;
+	while (i < s.length()) {
+		unsigned char c = static_cast<unsigned char>(s[i]);
+		unsigned long cp;
+		size_t n;
+
+		if (c < 0x80) {
+			cp = c;
+			n = 1;
+		} else if ((c & 0xe0) == 0xc0) {
+			cp = c & 0x1f;
+			n = 2;
+		} else if ((c & 0xf0) == 0xe0) {
+			cp = c & 0x0f;
+			n = 3;
+		} else if ((c & 0xf8) == 0xf0) {
+			cp = c & 0x07;
+			n = 4;
+		} else {
+			return false;
+		}
+		if (n > s.length() - i)
+			return false;
+		for (size_t k = 1; k < n; k++) {
+			unsigned char cc = static_cast<unsigned char>(s[i + k]);
+			if ((cc & 0xc0) != 0x80)
+				return false;
+			cp = (cp << 6) | (cc & 0x3f);
+		}
+		/* Reject overlong forms, surrogates, values past U+10FFFF
+		 * and control characters. */
+		if (cp < min_value[n] || cp > 0x10ffff ||
+			(cp >= 0xd800 && cp <= 0xdfff) ||
+			cp < 0x20 || (cp >= 0x7f && cp <= 0x9f))
+			return false;
+		i += n;
+		chars++;
+	}
+	return chars > 0;
+}
+
+bool Util::utf8_erase_last(std::string &s) {
+	if (s.empty())
+		return false;
+	size_t i = s.length() - 1;
+	while (i > 0 && (static_cast<unsigned char>(s[i]) & 0xc0) == 0x80)
+		i--;
+	s.erase(i);
+	return true;
+}
+
+std::string Util::latin1_to_utf8(const std::string &s) {
+	std::string utf8;
+	for (size_t i = 0; i < s.length(); ++i) {
+		unsigned char c = static_cast<unsigned char>(s[i]);
+		if (c < 0x80) {
+			utf8 += static_cast<char>(c);
+		} else {
+			utf8 += static_cast<char>(0xc0 | (c >> 6));
+			utf8 += static_cast<char>(0x80 | (c & 0x3f));
+		}
+	}
+	return utf8;
 }
 
 /*
