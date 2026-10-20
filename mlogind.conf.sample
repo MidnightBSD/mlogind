@@ -45,6 +45,16 @@ login_cmd           exec /bin/sh - ~/.xinitrc %session
 # sessionstart_cmd	some command
 # sessionstop_cmd	some command
 
+# Keep processes started by the session running after logout.
+# Valid values: yes | no (default no).  By default mlogind sends HUP and TERM
+# to the session process group and to all other session descendants, waits
+# up to 3 seconds, then sends KILL to whatever is left.  With "yes" only the
+# X clients are closed; other session processes are left running and are
+# reparented to init.  Note that with ConsoleKit the user's runtime
+# directory (XDG_RUNTIME_DIR, /var/run/user/<uid>) is still removed when the
+# last session closes, so surviving processes lose access to it.
+# keep_session_processes	no
+
 # DBus session bus launcher.
 # Set to "auto" to prefer dbus-run-session, falling back to dbus-launch.
 # Set to a full path to use a specific binary.

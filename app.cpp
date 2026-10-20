@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <limits.h>
 #include <login_cap.h>
 #include <cerrno>
 #include <cstring>
@@ -200,38 +201,79 @@ static bool secure_command_config(const char *path) {
 		(st.st_mode & (S_IWGRP | S_IWOTH)) == 0;
 }
 
+#if defined(USE_PAM) || defined(USE_CONSOLEKIT)
+/* Validate a runtime directory provided by PAM (e.g. pam_xdg) or
+ * ConsoleKit before files are created in it as root.  It must be a canonical
+ * absolute path (no symlink, "." or ".." components) to a real directory
+ * owned by the user with mode 0700, and every ancestor must be a root-owned
+ * directory that group and others cannot modify. */
+static bool valid_runtime_dir(const string &path, uid_t uid) {
+	char resolved[PATH_MAX];
+	struct stat st;
+
+	if (path.empty() || path[0] != '/' ||
+		realpath(path.c_str(), resolved) == NULL || path != resolved)
+		return false;
+	for (string::size_type pos = 0; pos != string::npos;
+		 pos = path.find('/', pos + 1)) {
+		string ancestor = pos == 0 ? string("/") : path.substr(0, pos);
+		if (lstat(ancestor.c_str(), &st) != 0 || !S_ISDIR(st.st_mode) ||
+			st.st_uid != 0 || (st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+			return false;
+	}
+	if (lstat(path.c_str(), &st) != 0)
+		return false;
+	return S_ISDIR(st.st_mode) && st.st_uid == uid &&
+		(st.st_mode & 07777) == 0700;
+}
+#endif
+
 /* Create or validate the per-user runtime directory required by the XDG
- * Base Directory Specification.  Do not trust an inherited root-side
- * XDG_RUNTIME_DIR: the login manager must select the directory for the
- * authenticated user. */
-static bool ensure_runtime_dir(uid_t uid, string &runtime_dir, bool &created) {
-	static const char *bases[] = {
-		"/var/run/user",
-		"/var/run/xdg",
-		"/run/user",
-		NULL
+ * Base Directory Specification.  This is the fallback used when neither PAM
+ * nor ConsoleKit provided a usable directory.  Do not trust an inherited
+ * root-side XDG_RUNTIME_DIR: the login manager must select the directory for
+ * the authenticated user.  /var/run/xdg is keyed by user name to match
+ * pam_xdg(8); the other bases are keyed by uid. */
+static bool ensure_runtime_dir(uid_t uid, gid_t gid, const char *name,
+							   string &runtime_dir, bool &created) {
+	static const struct {
+		const char *path;
+		bool by_name;
+	} bases[] = {
+		{ "/var/run/user", false },
+		{ "/var/run/xdg", true },
+		{ "/run/user", false },
+		{ NULL, false }
 	};
 	struct stat st;
 	created = false;
 
-	for (int i = 0; bases[i] != NULL; i++) {
-		if (lstat(bases[i], &st) != 0) {
+	for (int i = 0; bases[i].path != NULL; i++) {
+		if (bases[i].by_name && (name == NULL || name[0] == '\0' ||
+			name[0] == '.' || strchr(name, '/') != NULL))
+			continue;
+		if (lstat(bases[i].path, &st) != 0) {
 			if (errno != ENOENT || geteuid() != 0 ||
-				mkdir(bases[i], 0755) != 0)
+				mkdir(bases[i].path, 0755) != 0)
 				continue;
-			if (lstat(bases[i], &st) != 0)
+			if (lstat(bases[i].path, &st) != 0)
 				continue;
 		}
 		if (!S_ISDIR(st.st_mode) || st.st_uid != 0 ||
 			(st.st_mode & (S_IWGRP | S_IWOTH)) != 0)
 			continue;
 
-		runtime_dir = string(bases[i]) + "/" + to_string(uid);
+		runtime_dir = string(bases[i].path) + "/" +
+			(bases[i].by_name ? string(name) : to_string(uid));
 		if (mkdir(runtime_dir.c_str(), 0700) != 0) {
 			if (errno != EEXIST)
 				return false;
 		} else {
 			created = true;
+			/* The base is root-owned and not writable by others, so the
+			 * new directory cannot be replaced before it is handed over */
+			if (chown(runtime_dir.c_str(), uid, gid) != 0)
+				return false;
 		}
 		if (lstat(runtime_dir.c_str(), &st) != 0)
 			return false;
@@ -257,6 +299,64 @@ static bool create_session_authfile(const string &path, uid_t uid, gid_t gid) {
 	if (!valid)
 		unlink(path.c_str());
 	return valid;
+}
+
+/* Grace period between asking session processes to exit and killing them */
+static const int SESSION_EXIT_GRACE_MS = 3000;
+static const int SESSION_KILL_WAIT_MS = 1000;
+static const int SESSION_POLL_MS = 100;
+
+#ifdef HAVE_PROCCTL
+/* Collect exited processes that were reparented to mlogind while it is the
+ * session reaper and return how many session descendants remain.  Only pids
+ * on the reaper list are waited for, so the X server, which was started
+ * before PROC_REAP_ACQUIRE, is never collected here. */
+static u_int reap_session_descendants() {
+	struct procctl_reaper_status rs = {};
+	if (procctl(P_PID, getpid(), PROC_REAP_STATUS, &rs) != 0 ||
+		rs.rs_descendants == 0)
+		return 0;
+
+	vector<struct procctl_reaper_pidinfo> info(rs.rs_descendants);
+	struct procctl_reaper_pids rp = {};
+	rp.rp_count = info.size();
+	rp.rp_pids = info.data();
+	if (procctl(P_PID, getpid(), PROC_REAP_GETPIDS, &rp) == 0) {
+		for (size_t i = 0; i < info.size(); i++) {
+			if ((info[i].pi_flags & REAPER_PIDINFO_VALID) &&
+				(info[i].pi_flags & REAPER_PIDINFO_CHILD))
+				waitpid(info[i].pi_pid, NULL, WNOHANG);
+		}
+	}
+
+	rs = {};
+	if (procctl(P_PID, getpid(), PROC_REAP_STATUS, &rs) != 0)
+		return 0;
+	return rs.rs_descendants;
+}
+#endif
+
+/* Reap exited members of the session process group (and, when mlogind is
+ * the session reaper, its other descendants) and report whether any are
+ * still present. */
+static bool session_processes_remain(pid_t pgrp, bool reaper) {
+	while (waitpid(-pgrp, NULL, WNOHANG) > 0)
+		;
+	bool remain = killpg(pgrp, 0) == 0 || errno == EPERM;
+#ifdef HAVE_PROCCTL
+	if (reaper && reap_session_descendants() > 0)
+		remain = true;
+#else
+	(void)reaper;
+#endif
+	return remain;
+}
+
+/* Poll until the session's processes are gone or timeout_ms has elapsed. */
+static void wait_for_session_exit(pid_t pgrp, bool reaper, int timeout_ms) {
+	for (int waited = 0; session_processes_remain(pgrp, reaper) &&
+		 waited < timeout_ms; waited += SESSION_POLL_MS)
+		usleep(SESSION_POLL_MS * 1000);
 }
 
 static string configured_vt(Cfg *config, bool daemon) {
@@ -811,18 +911,85 @@ void App::Login() {
 		/* shell is freed when this child process exits */
 	}
 
+	/* Close the ConsoleKit and PAM sessions opened for this login */
+	auto close_sessions = [&]() {
+#ifdef USE_CONSOLEKIT
+		try {
+			ck.close_session();
+		}
+		catch(Ck::Exception &e) {
+			logStream << APPNAME << ": " << e << endl;
+		};
+#endif
+#ifdef USE_PAM
+		try{
+			pam.close_session();
+		}
+		catch(PAM::Exception& e){
+			logStream << APPNAME << ": " << e << endl;
+		};
+		try{
+			pam.end();
+		}
+		catch(PAM::Exception& e){
+			logStream << APPNAME << ": " << e << endl;
+		};
+#endif
+	};
+
+#ifdef USE_CONSOLEKIT
+	/* Setup the ConsoleKit session.  It is opened before the runtime
+	 * directory is chosen because ConsoleKit replaces any existing
+	 * /var/run/user/<uid> when the user's first session opens.  A failure
+	 * is not fatal: continue without a ConsoleKit session. */
+	try {
+		ck.open_session(DisplayName, pw->pw_uid);
+	}
+	catch(Ck::Exception &e) {
+		logStream << APPNAME << ": " << e
+			  << "; continuing without a ConsoleKit session" << endl;
+	}
+#endif
+
+	/* Choose XDG_RUNTIME_DIR: prefer one set up by a PAM module (pam_xdg),
+	 * then the one managed by ConsoleKit, and only create one ourselves if
+	 * neither is usable.  Only a directory mlogind created is removed at
+	 * logout; the others belong to PAM or ConsoleKit. */
 	string runtime_dir;
 	bool runtime_dir_created = false;
-	if (!ensure_runtime_dir(pw->pw_uid, runtime_dir, runtime_dir_created)) {
+#ifdef USE_PAM
+	const char *pam_runtime_dir = pam.getenv("XDG_RUNTIME_DIR");
+	if (pam_runtime_dir != NULL) {
+		if (valid_runtime_dir(pam_runtime_dir, pw->pw_uid))
+			runtime_dir = pam_runtime_dir;
+		else
+			logStream << APPNAME << ": ignoring XDG_RUNTIME_DIR " << pam_runtime_dir
+				  << " from PAM: not a private directory owned by "
+				  << pw->pw_name << endl;
+	}
+#endif
+#ifdef USE_CONSOLEKIT
+	if (runtime_dir.empty() && ck.is_open()) {
+		try {
+			string ck_runtime_dir = ck.get_runtime_dir();
+			if (valid_runtime_dir(ck_runtime_dir, pw->pw_uid))
+				runtime_dir = ck_runtime_dir;
+			else if (!ck_runtime_dir.empty())
+				logStream << APPNAME << ": ignoring ConsoleKit runtime directory "
+					  << ck_runtime_dir << ": not a private directory owned by "
+					  << pw->pw_name << endl;
+		}
+		catch(Ck::Exception &e) {
+			logStream << APPNAME << ": " << e << endl;
+		}
+	}
+#endif
+	if (runtime_dir.empty() &&
+		!ensure_runtime_dir(pw->pw_uid, pw->pw_gid, pw->pw_name, runtime_dir,
+							runtime_dir_created)) {
 		logStream << APPNAME << ": could not create or validate XDG_RUNTIME_DIR for "
 			  << pw->pw_name << endl;
-#ifdef USE_PAM
-		try {
-			pam.close_session();
-			pam.end();
-		} catch (PAM::Exception&) {
-		}
-#endif
+		close_sessions();
 		if (runtime_dir_created)
 			rmdir(runtime_dir.c_str());
 		return;
@@ -880,28 +1047,12 @@ void App::Login() {
 	}
 #endif
 
-#ifdef USE_CONSOLEKIT
-	/* Setup the ConsoleKit session */
-	try {
-		ck.open_session(DisplayName, pw->pw_uid);
-	}
-	catch(Ck::Exception &e) {
-		logStream << APPNAME << ": " << e << endl;
-		exit(ERR_EXIT);
-	}
-#endif
 	bool session_auth_created = create_session_authfile(xauthority,
 		pw->pw_uid, pw->pw_gid);
 	if (!session_auth_created) {
 		logStream << APPNAME << ": could not create session Xauthority file "
 			  << xauthority << endl;
-#ifdef USE_PAM
-		try {
-			pam.close_session();
-			pam.end();
-		} catch (PAM::Exception&) {
-		}
-#endif
+		close_sessions();
 		if (runtime_dir_created)
 			rmdir(runtime_dir.c_str());
 		return;
@@ -930,17 +1081,11 @@ void App::Login() {
 		if (session_reaper)
 			procctl(P_PID, getpid(), PROC_REAP_RELEASE, NULL);
 #endif
-#ifdef USE_PAM
-		try {
-			pam.close_session();
-			pam.end();
-		} catch (PAM::Exception&) {
-		}
-#endif
-		if (runtime_dir_created)
-			rmdir(runtime_dir.c_str());
+		close_sessions();
 		if (session_auth_created)
 			unlink(xauthority.c_str());
+		if (runtime_dir_created)
+			rmdir(runtime_dir.c_str());
 		return;
 	}
 	if(pid == 0) {
@@ -952,18 +1097,10 @@ void App::Login() {
 			_exit(ERR_EXIT);
 
 # ifdef USE_CONSOLEKIT
-		char** old_env = child_env;
-
-		/* Grow the copy of the environment for the session cookie */
-		int n;
-		for(n = 0; child_env[n] != NULL ; n++);
-
-		n++;
-
-		child_env = static_cast<char**>(malloc(sizeof(char*)*(n+1)));
-		memcpy(child_env, old_env, sizeof(char*)*n);
-		child_env[n - 1] = StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
-		child_env[n] = NULL;
+		/* Only a successfully opened ConsoleKit session has a cookie */
+		const char *ck_cookie = ck.get_xdg_session_cookie();
+		if (ck_cookie != NULL)
+			AddToEnv(&child_env, "XDG_SESSION_COOKIE", ck_cookie);
 # endif /* USE_CONSOLEKIT */
 #else
 
@@ -991,12 +1128,15 @@ void App::Login() {
 		child_env[n++]=StrConcat("XDG_SESSION_TYPE=x11", "");
 		child_env[n++]=StrConcat("XDG_SESSION_CLASS=user", "");
 		child_env[n++]=StrConcat("XDG_SEAT=seat0", "");
-		if (!xdg_vtnr.empty())
-			AddToEnv(&child_env, "XDG_VTNR", xdg_vtnr.c_str());
 # ifdef USE_CONSOLEKIT
-		child_env[n++]=StrConcat("XDG_SESSION_COOKIE=", ck.get_xdg_session_cookie());
+		const char *ck_cookie = ck.get_xdg_session_cookie();
+		if (ck_cookie != NULL)
+			child_env[n++]=StrConcat("XDG_SESSION_COOKIE=", ck_cookie);
 # endif /* USE_CONSOLEKIT */
 			child_env[n++]=0;
+		/* AddToEnv needs the NULL terminator written above */
+		if (!xdg_vtnr.empty())
+			AddToEnv(&child_env, "XDG_VTNR", xdg_vtnr.c_str());
 
 #endif
 		if (!current_desktop.empty())
@@ -1104,60 +1244,61 @@ void App::Login() {
 		}
 	}
 
-#ifdef USE_CONSOLEKIT
-	try {
-		ck.close_session();
-	}
-	catch(Ck::Exception &e) {
-		logStream << APPNAME << ": " << e << endl;
-	};
-#endif
+	/* Terminate the session before closing the ConsoleKit and PAM
+	 * sessions: ConsoleKit (and pam_xdg) remove the runtime directory when
+	 * the session closes, which must not happen while session processes
+	 * such as dconf-service or gvfsd can still write to it. */
 
-#ifdef USE_PAM
-	try{
-		pam.close_session();
-	}
-	catch(PAM::Exception& e){
-		logStream << APPNAME << ": " << e << endl;
-	};
-	try{
-		pam.end();
-	}
-	catch(PAM::Exception& e){
-		logStream << APPNAME << ": " << e << endl;
-	};
-#endif
 	/* Close all clients */
 	KillAllClients(False);
 	KillAllClients(True);
 
-	/* Send HUP signal to clientgroup */
-	killpg(pid, SIGHUP);
-
-	/* Send TERM signal to clientgroup, if error send KILL */
-	if(killpg(pid, SIGTERM))
-	killpg(pid, SIGKILL);
-
+	bool keep_processes = cfg->getOption("keep_session_processes") == "yes";
+	if (!keep_processes) {
+		/* Ask the session process group and, when mlogind is the reaper,
+		 * every other session descendant to exit */
+		killpg(pid, SIGHUP);
+		killpg(pid, SIGTERM);
 #ifdef HAVE_PROCCTL
-	if (session_reaper) {
 		struct procctl_reaper_kill reap = {};
 		reap.rk_flags = REAPER_KILL_SUBTREE;
 		reap.rk_subtree = pid;
-		reap.rk_sig = SIGHUP;
-		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
-		reap.rk_sig = SIGTERM;
-		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
-		reap.rk_sig = SIGKILL;
-		procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
-		if (procctl(P_PID, getpid(), PROC_REAP_RELEASE, NULL) != 0)
-			logStream << APPNAME << ": procctl reaper release failed: "
-				  << strerror(errno) << endl;
-	}
+		if (session_reaper) {
+			reap.rk_sig = SIGHUP;
+			procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+			reap.rk_sig = SIGTERM;
+			procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+		}
 #endif
+		/* Give the session a grace period to exit cleanly, then force it */
+		wait_for_session_exit(pid, session_reaper, SESSION_EXIT_GRACE_MS);
+		if (killpg(pid, SIGKILL) < 0 && errno != ESRCH)
+			logStream << APPNAME << ": killpg SIGKILL failed: " << strerror(errno) << endl;
+#ifdef HAVE_PROCCTL
+		if (session_reaper) {
+			reap.rk_sig = SIGKILL;
+			procctl(P_PID, getpid(), PROC_REAP_KILL, &reap);
+		}
+#endif
+		wait_for_session_exit(pid, session_reaper, SESSION_KILL_WAIT_MS);
+	}
+
+#ifdef HAVE_PROCCTL
+	/* Surviving descendants (keep_session_processes) are reparented to
+	 * init when the reaper is released */
+	if (session_reaper &&
+		procctl(P_PID, getpid(), PROC_REAP_RELEASE, NULL) != 0)
+		logStream << APPNAME << ": procctl reaper release failed: "
+			  << strerror(errno) << endl;
+#endif
+
+	close_sessions();
+
 	if (session_auth_created && unlink(xauthority.c_str()) != 0 && errno != ENOENT)
 		logStream << APPNAME << ": could not remove session Xauthority file "
 			  << xauthority << ": " << strerror(errno) << endl;
-	if (runtime_dir_created && rmdir(runtime_dir.c_str()) != 0 && errno != ENOTEMPTY)
+	if (runtime_dir_created && rmdir(runtime_dir.c_str()) != 0 &&
+		errno != ENOENT && errno != ENOTEMPTY)
 		logStream << APPNAME << ": could not remove XDG_RUNTIME_DIR "
 			  << runtime_dir << ": " << strerror(errno) << endl;
 

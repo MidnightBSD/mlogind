@@ -41,6 +41,7 @@ Cfg::Cfg()
 	options.insert(option("suspend_cmd",""));
 	options.insert(option("sessionstart_cmd",""));
 	options.insert(option("sessionstop_cmd",""));
+	options.insert(option("keep_session_processes","no"));
 	options.insert(option("console_cmd","/usr/bin/xterm -C -fg white -bg black +sb -g %dx%d+%d+%d -fn %dx%d -T ""Console login"" -e /bin/sh -c ""/bin/cat /etc/issue; exec /bin/login"""));
 	options.insert(option("screenshot_cmd",""));
 	options.insert(option("welcome_msg","Welcome to %host"));
